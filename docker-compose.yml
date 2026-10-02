@@ -1,0 +1,219 @@
+{
+  "services": {
+    "smartdetector-web": {
+      "init": true,
+      "build": {
+        "context": ".",
+        "dockerfile": "devops/docker/Dockerfile.web"
+      },
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "AWS_REGION": "${AWS_REGION:-us-east-1}",
+        "AWS_ACCESS_KEY_ID": "local",
+        "AWS_SECRET_ACCESS_KEY": "local",
+        "SMARTDETECTOR_DEPLOYMENT_MODE": "${SMARTDETECTOR_DEPLOYMENT_MODE:-saas}",
+        "SMARTDETECTOR_ROOT_USER": "${SMARTDETECTOR_ROOT_USER:-root}",
+        "SMARTDETECTOR_ROOT_PASSWORD": "${SMARTDETECTOR_ROOT_PASSWORD:-smartdetector-local-change-me}",
+        "SMARTDETECTOR_SESSION_SECRET": "${SMARTDETECTOR_SESSION_SECRET:-smartdetector-local-session-secret-change-me}",
+        "SMARTDETECTOR_DYNAMODB_ENDPOINT": "http://smartdetector-dynamodb:8000",
+        "SMARTDETECTOR_TABLE": "smartdetector-local",
+        "SMARTDETECTOR_QUEUE_URL": "http://smartdetector-queue:9324/queue/smartdetector-events",
+        "SMARTDETECTOR_QUEUE_ENDPOINT": "http://smartdetector-queue:9324",
+        "SMARTDETECTOR_LOCAL_QUEUE_AUTOCREATE": "true",
+        "SMARTDETECTOR_EVIDENCE_BUCKET": "smartdetector-local-evidence",
+        "SMARTDETECTOR_S3_ENDPOINT": "http://smartdetector-objects:9090",
+        "SMARTDETECTOR_NOTIFICATION_MODE": "log",
+        "STRIPE_SECRET_KEY": "${STRIPE_SECRET_KEY:-}",
+        "STRIPE_WEBHOOK_SECRET": "${STRIPE_WEBHOOK_SECRET:-}",
+        "STRIPE_STARTER_PRICE_ID": "${STRIPE_STARTER_PRICE_ID:-}",
+        "STRIPE_SCALE_PRICE_ID": "${STRIPE_SCALE_PRICE_ID:-}",
+        "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}"
+      },
+      "ports": [
+        "${SMARTDETECTOR_WEB_PORT:-8082}:3000"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:3000/api/health"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 20,
+        "start_period": "20s"
+      },
+      "depends_on": {
+        "smartdetector-dynamodb": {
+          "condition": "service_started"
+        },
+        "smartdetector-queue": {
+          "condition": "service_healthy"
+        },
+        "smartdetector-objects": {
+          "condition": "service_healthy"
+        }
+      }
+    },
+    "smartdetector-api": {
+      "init": true,
+      "build": {
+        "context": ".",
+        "dockerfile": "devops/docker/Dockerfile.api"
+      },
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "3001",
+        "AWS_REGION": "${AWS_REGION:-us-east-1}",
+        "AWS_ACCESS_KEY_ID": "local",
+        "AWS_SECRET_ACCESS_KEY": "local",
+        "SMARTDETECTOR_DEPLOYMENT_MODE": "${SMARTDETECTOR_DEPLOYMENT_MODE:-saas}",
+        "SMARTDETECTOR_ROOT_USER": "${SMARTDETECTOR_ROOT_USER:-root}",
+        "SMARTDETECTOR_ROOT_PASSWORD": "${SMARTDETECTOR_ROOT_PASSWORD:-smartdetector-local-change-me}",
+        "SMARTDETECTOR_SESSION_SECRET": "${SMARTDETECTOR_SESSION_SECRET:-smartdetector-local-session-secret-change-me}",
+        "SMARTDETECTOR_DYNAMODB_ENDPOINT": "http://smartdetector-dynamodb:8000",
+        "SMARTDETECTOR_TABLE": "smartdetector-local",
+        "SMARTDETECTOR_QUEUE_URL": "http://smartdetector-queue:9324/queue/smartdetector-events",
+        "SMARTDETECTOR_QUEUE_ENDPOINT": "http://smartdetector-queue:9324",
+        "SMARTDETECTOR_LOCAL_QUEUE_AUTOCREATE": "true",
+        "SMARTDETECTOR_EVIDENCE_BUCKET": "smartdetector-local-evidence",
+        "SMARTDETECTOR_S3_ENDPOINT": "http://smartdetector-objects:9090",
+        "SMARTDETECTOR_NOTIFICATION_MODE": "log",
+        "STRIPE_SECRET_KEY": "${STRIPE_SECRET_KEY:-}",
+        "STRIPE_WEBHOOK_SECRET": "${STRIPE_WEBHOOK_SECRET:-}",
+        "STRIPE_STARTER_PRICE_ID": "${STRIPE_STARTER_PRICE_ID:-}",
+        "STRIPE_SCALE_PRICE_ID": "${STRIPE_SCALE_PRICE_ID:-}",
+        "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}"
+      },
+      "ports": [
+        "127.0.0.1:${SMARTDETECTOR_API_PORT:-3201}:3001"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:3001/api/health"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 20,
+        "start_period": "20s"
+      },
+      "depends_on": {
+        "smartdetector-dynamodb": {
+          "condition": "service_started"
+        },
+        "smartdetector-queue": {
+          "condition": "service_healthy"
+        },
+        "smartdetector-objects": {
+          "condition": "service_healthy"
+        }
+      }
+    },
+    "smartdetector-worker": {
+      "init": true,
+      "build": {
+        "context": ".",
+        "dockerfile": "devops/docker/Dockerfile.worker"
+      },
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "AWS_REGION": "${AWS_REGION:-us-east-1}",
+        "AWS_ACCESS_KEY_ID": "local",
+        "AWS_SECRET_ACCESS_KEY": "local",
+        "SMARTDETECTOR_DEPLOYMENT_MODE": "${SMARTDETECTOR_DEPLOYMENT_MODE:-saas}",
+        "SMARTDETECTOR_ROOT_USER": "${SMARTDETECTOR_ROOT_USER:-root}",
+        "SMARTDETECTOR_ROOT_PASSWORD": "${SMARTDETECTOR_ROOT_PASSWORD:-smartdetector-local-change-me}",
+        "SMARTDETECTOR_SESSION_SECRET": "${SMARTDETECTOR_SESSION_SECRET:-smartdetector-local-session-secret-change-me}",
+        "SMARTDETECTOR_DYNAMODB_ENDPOINT": "http://smartdetector-dynamodb:8000",
+        "SMARTDETECTOR_TABLE": "smartdetector-local",
+        "SMARTDETECTOR_QUEUE_URL": "http://smartdetector-queue:9324/queue/smartdetector-events",
+        "SMARTDETECTOR_QUEUE_ENDPOINT": "http://smartdetector-queue:9324",
+        "SMARTDETECTOR_LOCAL_QUEUE_AUTOCREATE": "true",
+        "SMARTDETECTOR_EVIDENCE_BUCKET": "smartdetector-local-evidence",
+        "SMARTDETECTOR_S3_ENDPOINT": "http://smartdetector-objects:9090",
+        "SMARTDETECTOR_NOTIFICATION_MODE": "log",
+        "STRIPE_SECRET_KEY": "${STRIPE_SECRET_KEY:-}",
+        "STRIPE_WEBHOOK_SECRET": "${STRIPE_WEBHOOK_SECRET:-}",
+        "STRIPE_STARTER_PRICE_ID": "${STRIPE_STARTER_PRICE_ID:-}",
+        "STRIPE_SCALE_PRICE_ID": "${STRIPE_SCALE_PRICE_ID:-}",
+        "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}"
+      },
+      "depends_on": {
+        "smartdetector-dynamodb": {
+          "condition": "service_started"
+        },
+        "smartdetector-queue": {
+          "condition": "service_healthy"
+        },
+        "smartdetector-objects": {
+          "condition": "service_healthy"
+        }
+      }
+    },
+    "smartdetector-dynamodb": {
+      "image": "amazon/dynamodb-local:2.6.1",
+      "command": [
+        "-jar",
+        "DynamoDBLocal.jar",
+        "-sharedDb",
+        "-dbPath",
+        "/home/dynamodblocal"
+      ],
+      "volumes": [
+        "smartdetector-dynamodb:/home/dynamodblocal"
+      ]
+    },
+    "smartdetector-queue": {
+      "image": "softwaremill/elasticmq-native:1.6.15",
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:9325"
+        ],
+        "interval": "5s",
+        "timeout": "3s",
+        "retries": 20
+      }
+    },
+    "smartdetector-objects": {
+      "image": "adobe/s3mock:latest",
+      "environment": {
+        "COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS": "smartdetector-local-evidence",
+        "COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT": "true"
+      },
+      "volumes": [
+        "smartdetector-objects:/tmp/s3mock"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:9090/"
+        ],
+        "interval": "5s",
+        "timeout": "3s",
+        "retries": 30
+      }
+    }
+  },
+  "volumes": {
+    "smartdetector-dynamodb": {},
+    "smartdetector-objects": {}
+  },
+  "networks": {
+    "default": {
+      "name": "application-platforms-local",
+      "external": true
+    }
+  }
+}
+

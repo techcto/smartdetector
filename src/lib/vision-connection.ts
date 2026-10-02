@@ -1,0 +1,2 @@
+import{credentials,listSettings,saveSetting}from'./providers';export async function connection(orgId:string){return(await credentials(orgId,'autovision'))?.apiKey??''}export async function saveConnection(orgId:string,key:string,userId='operator'){const existing=(await listSettings(orgId)).find(v=>v.providerKey==='autovision'&&v.isDefault);await saveSetting(orgId,userId,{id:existing?.id,providerKey:'autovision',name:'Default AutoVision',isDefault:true,settings:{apiKey:key}})}
+
