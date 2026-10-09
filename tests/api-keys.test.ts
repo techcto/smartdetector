@@ -1,0 +1,51 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { NextRequest } from 'next/server';
+import { store } from '../src/lib/store';
+import { createApiKey, listApiKeys, verifyApiKey, revokeApiKey, readIdentity } from '../src/lib/api-keys';
+import { GET as getEvent } from '../src/app/api/v1/incidents/[id]/route';
+import { POST as createKeyRoute } from '../src/app/api/v1/api-keys/route';
+import { createSession, sessionCookie } from '../src/lib/session';
+test('keys are hashed, scoped, org-bound and immediately revocable', async () => {
+  const a = await store.createOrganization({ name: 'Synthetic key workspace A', ownerId: 'test', orgType: 'business' });
+  const b = await store.createOrganization({ name: 'Synthetic key workspace B', ownerId: 'test', orgType: 'business' });
+  const key = await createApiKey(a.id, 'test', { name: 'Synthetic MCP key', scopes: ['events:read'], expiresInDays: 1 });
+  assert.equal((await verifyApiKey(key.token, 'events:read'))?.orgId, a.id);
+  assert.equal(await verifyApiKey(key.token, 'devices:read'), null);
+  assert.equal(await verifyApiKey(key.token.replace(a.id, b.id), 'events:read'), null);
+  assert.equal(await verifyApiKey(key.token.slice(0, -2) + 'aa', 'events:read'), null);
+  const listed = JSON.stringify(await listApiKeys(a.id));
+  assert.ok(!listed.includes(key.token) && !listed.includes('digest'));
+  assert.deepEqual(await listApiKeys(b.id), []);
+  await revokeApiKey(b.id, key.id);
+  assert.ok(await verifyApiKey(key.token, 'events:read'));
+  await revokeApiKey(a.id, key.id);
+  assert.equal(await verifyApiKey(key.token, 'events:read'), null);
+});
+test('expired keys fail and read-only requests cannot select a different organization', async () => {
+  const a = await store.createOrganization({ name: 'Synthetic read workspace', ownerId: 'test', orgType: 'business' });
+  const b = await store.createOrganization({ name: 'Synthetic other workspace', ownerId: 'test', orgType: 'business' });
+  await store.putIncident({ tenantId: b.id, serverId: 'demo', agentId: 'demo', incidentId: 'other-event', state: 'warning', startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), payload: { synthetic: true } });
+  const key = await createApiKey(a.id, 'test', { name: 'Synthetic expiring key', scopes: ['events:read'], expiresInDays: 1 });
+  const req = new NextRequest(`http://localhost/api/v1/incidents/other-event?orgId=${b.id}`, { headers: { authorization: `Bearer ${key.token}` } });
+  assert.equal((await readIdentity(req, 'events:read'))?.orgId, a.id);
+  assert.equal((await getEvent(req, { params: Promise.resolve({ id: 'other-event' }) })).status, 404);
+  const now = Date.now;
+  try { Date.now = () => now() + 86400001; assert.equal(await verifyApiKey(key.token, 'events:read'), null); } finally { Date.now = now; }
+  await assert.rejects(createApiKey(a.id, 'test', { name: 'bad', scopes: ['admin' as 'events:read'], expiresInDays: 1 }));
+});
+test('key management requires an admin browser session and same-origin mutation', async () => {
+  const secret = 'synthetic-session-secret-for-api-key-tests';
+  process.env.SMARTDETECTOR_SESSION_SECRET = secret;
+  const org = await store.createOrganization({ name: 'Synthetic management workspace', ownerId: 'test', orgType: 'business' });
+  const token = await createSession({ id: 'root', username: 'root', role: 'root', orgId: org.id, expiresAt: Date.now() + 60000 }, secret);
+  const body = JSON.stringify({ name: 'Synthetic management key', scopes: ['events:read'], expiresInDays: 1 });
+  const req = (origin: string, cookie = `${sessionCookie}=${token}`) => new NextRequest('http://localhost/api/v1/api-keys', { method: 'POST', headers: { host: 'localhost', origin, cookie, 'content-type': 'application/json' }, body });
+  assert.equal((await createKeyRoute(req('https://example.invalid'))).status, 403);
+  assert.equal((await createKeyRoute(req('http://localhost', ''))).status, 403);
+  const response = await createKeyRoute(req('http://localhost'));
+  assert.equal(response.status, 201);
+  const key = await response.json();
+  assert.ok(await verifyApiKey(key.token, 'events:read'));
+  await revokeApiKey(org.id, key.id);
+});

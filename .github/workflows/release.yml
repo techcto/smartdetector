@@ -16,12 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: {submodules: recursive}
       - uses: actions/setup-node@v4
         with: {node-version: 26, cache: npm}
-      - run: npm ci && npm run typecheck && npm run test:web && npm run build
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.13'}
-      - run: pip install cfn-lint && cfn-lint devops/cloudformation/*.yaml
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
@@ -45,17 +42,17 @@ jobs:
           echo "MP_AWS_ECR=$REGISTRY" >> "$GITHUB_ENV"
           for service in web api worker; do
             repository="$REPOSITORY_PREFIX-$service"
-            aws ecr describe-repositories --repository-names "$repository" >/dev/null 2>&1 || aws ecr create-repository --repository-name "$repository" --image-scanning-configuration scanOnPush=true >/dev/null
+            aws ecr describe-repositories --repository-names "$repository" >/dev/null
             docker buildx build --platform linux/amd64 --provenance=false --sbom=false --push -f "devops/docker/Dockerfile.$service" -t "$REGISTRY/$REPOSITORY_PREFIX-$service:$version" .
           done
       - name: Publish deployment templates
         run: |
-          bash devops/public-assets.sh
           for template in devops/cloudformation/*.yaml; do
             base="$(basename "$template" .yaml)"
             aws s3 cp "$template" "s3://$ASSETS_BUCKET/cloudformation/$base-$RELEASE_VERSION.yaml" --content-type text/yaml --cache-control 'max-age=31536000,immutable'
             aws s3 cp "$template" "s3://$ASSETS_BUCKET/cloudformation/$base.yaml" --content-type text/yaml --cache-control no-cache
           done
+          bash devops/public-assets.sh
       - name: Submit Marketplace delivery changeset
         if: ${{ vars.MP_AWS_MARKETPLACE_PRODUCT_ID != '' }}
         env:

@@ -1,4 +1,8 @@
 .git
+**/.git
+**/node_modules
+**/.env
+**/.env.*
 .github
 .next
 node_modules

@@ -1,6 +1,8 @@
 FROM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
+COPY .npmrc ./
+COPY submodules/smartdetector-agentcore ./submodules/smartdetector-agentcore
 RUN npm ci
 COPY tsconfig.json ./
 COPY src/worker ./src/worker

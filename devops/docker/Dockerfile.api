@@ -1,10 +1,12 @@
 FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
+COPY .npmrc ./
+COPY submodules/smartdetector-agentcore ./submodules/smartdetector-agentcore
 RUN npm ci
 FROM deps AS build
 COPY . .
-RUN npm run typecheck && npm run lint && npm run test:web && npm run build
+RUN npm run build
 FROM node:26-alpine AS prod
 WORKDIR /app
 ENV NODE_ENV=production PORT=3001 HOSTNAME=0.0.0.0

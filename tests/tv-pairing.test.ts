@@ -1,0 +1,31 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {beginTvPairing, approveTvPairing, pollTvPairing, inspectTvPairing} from '../src/lib/tv-pairing';
+import {authorizeTv} from '../src/lib/tv';
+import {removeSetting} from '../src/lib/providers';
+import {store} from '../src/lib/store';
+test('TV pairing binds approval to organization, rejects guesses and reuse, and supports revocation', async () => {
+  process.env.SMARTDETECTOR_SESSION_SECRET = 'synthetic-tv-secret-at-least-32-characters';
+  const org = await store.createOrganization({name:'Synthetic TV workspace',ownerId:'test',orgType:'business'});
+  const pair = await beginTvPairing('Synthetic display');
+  assert.equal((await inspectTvPairing(pair.userCode))?.name,'Synthetic display');
+  assert.equal((await pollTvPairing(pair.deviceCode)).error,'authorization_pending');
+  assert.equal((await pollTvPairing(pair.deviceCode.slice(0,-1)+'!')).error,'invalid_device_code');
+  const guessed = pair.deviceCode.slice(0,-1) + (pair.deviceCode.endsWith('A') ? 'B' : 'A');
+  assert.equal((await pollTvPairing(guessed)).error,'invalid_device_code');
+  assert.equal((await pollTvPairing(pair.deviceCode,pair.expiresAt+1)).error,'expired_token');
+  await approveTvPairing(pair.userCode,org.id,'test');
+  await assert.rejects(approveTvPairing(pair.userCode,org.id,'test'));
+  const result = await pollTvPairing(pair.deviceCode);
+  assert.ok(result.token);
+  const access = await authorizeTv(result.token!); assert.equal(access?.orgId,org.id); assert.equal(access?.purpose,'tv-feed');
+  assert.equal(await authorizeTv(result.token!+'tampered'),null);
+  await removeSetting(org.id,access!.connectionId);
+  assert.equal(await authorizeTv(result.token!),null);
+});
+test('only one concurrent approval can succeed',async()=>{
+  process.env.SMARTDETECTOR_SESSION_SECRET = 'synthetic-tv-secret-at-least-32-characters';
+  const pair=await beginTvPairing('Concurrency demo');
+  const results=await Promise.allSettled([approveTvPairing(pair.userCode,'synthetic-a','test'),approveTvPairing(pair.userCode,'synthetic-b','test')]);
+  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+});

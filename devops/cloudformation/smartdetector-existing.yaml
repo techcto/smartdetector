@@ -156,6 +156,11 @@
         "false"
       ],
       "Description": "Use EventBridge to deliver incidents. Set false for direct SQS delivery."
+    },
+    "AutoVisionApiKeySecretArn": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Optional same-region Secrets Manager ARN. The entire secret value must be the AutoVision service API key; use the AWS-managed Secrets Manager encryption key."
     }
   },
   "Resources": {
@@ -624,7 +629,23 @@
                 },
                 "awslogs-stream-prefix": "web"
               }
-            }
+            },
+            "Secrets": [
+              {
+                "Fn::If": [
+                  "UseAutoVisionSecret",
+                  {
+                    "Name": "SMARTDETECTOR_AUTOVISION_API_KEY",
+                    "ValueFrom": {
+                      "Ref": "AutoVisionApiKeySecretArn"
+                    }
+                  },
+                  {
+                    "Ref": "AWS::NoValue"
+                  }
+                ]
+              }
+            ]
           }
         ]
       }
@@ -842,7 +863,23 @@
                 },
                 "awslogs-stream-prefix": "api"
               }
-            }
+            },
+            "Secrets": [
+              {
+                "Fn::If": [
+                  "UseAutoVisionSecret",
+                  {
+                    "Name": "SMARTDETECTOR_AUTOVISION_API_KEY",
+                    "ValueFrom": {
+                      "Ref": "AutoVisionApiKeySecretArn"
+                    }
+                  },
+                  {
+                    "Ref": "AWS::NoValue"
+                  }
+                ]
+              }
+            ]
           }
         ]
       }
@@ -1032,6 +1069,12 @@
                 "Value": {
                   "Ref": "ProviderSecret"
                 }
+              },
+              {
+                "Name": "SMARTDETECTOR_AUTOVISION_URL",
+                "Value": {
+                  "Ref": "AutoVisionUrl"
+                }
               }
             ],
             "LogConfiguration": {
@@ -1045,7 +1088,23 @@
                 },
                 "awslogs-stream-prefix": "worker"
               }
-            }
+            },
+            "Secrets": [
+              {
+                "Fn::If": [
+                  "UseAutoVisionSecret",
+                  {
+                    "Name": "SMARTDETECTOR_AUTOVISION_API_KEY",
+                    "ValueFrom": {
+                      "Ref": "AutoVisionApiKeySecretArn"
+                    }
+                  },
+                  {
+                    "Ref": "AWS::NoValue"
+                  }
+                ]
+              }
+            ]
           }
         ]
       }
@@ -1276,6 +1335,32 @@
           "EvaluateTargetHealth": false
         }
       }
+    },
+    "AutoVisionServiceSecretRead": {
+      "Type": "AWS::IAM::Policy",
+      "Condition": "UseAutoVisionSecret",
+      "Properties": {
+        "PolicyName": "autovision-service-secret-read",
+        "Roles": [
+          {
+            "Ref": "ExecutionRole"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "secretsmanager:GetSecretValue"
+              ],
+              "Resource": {
+                "Ref": "AutoVisionApiKeySecretArn"
+              }
+            }
+          ]
+        }
+      }
     }
   },
   "Outputs": {
@@ -1349,6 +1434,18 @@
           "Ref": "EventBridgeEnabled"
         },
         "true"
+      ]
+    },
+    "UseAutoVisionSecret": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "AutoVisionApiKeySecretArn"
+            },
+            ""
+          ]
+        }
       ]
     }
   },

@@ -1,0 +1,8 @@
+'use client';
+import {useState} from 'react';
+export default function ConnectDisplay() {
+  const [code,setCode] = useState(''), [pair,setPair] = useState<{name:string;orgId:string;orgName:string}|null>(null), [message,setMessage] = useState('');
+  async function inspect() {setPair(null); const r = await fetch('/api/v1/tv/approve?code='+encodeURIComponent(code), {cache:'no-store'}); const v = await r.json(); if (r.ok) {setPair(v); setMessage('');} else setMessage(v.error);}
+  async function approve() {const r = await fetch('/api/v1/tv/approve', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,orgId:pair?.orgId})}); const v = await r.json(); setMessage(r.ok ? 'Display connected. Return to your TV.' : v.error); setPair(null);}
+  return <main style={{maxWidth:640,margin:'4rem auto',padding:24}}><h1>Connect your TV</h1><p>Sign in with your normal SmartDetector account and select the intended organization in the console first. Only workspace administrators can approve a display.</p><label>Code shown on TV<input value={code} onChange={e=>{setCode(e.target.value.toUpperCase());setPair(null);}} maxLength={11} autoComplete="off" style={{display:'block',fontSize:24,margin:'1rem 0'}}/></label><button onClick={()=>void inspect()}>Check code</button>{pair && <section><h2>Approve {pair.name}?</h2><p>Organization: {pair.orgName}</p><p>This grants read-only access to incident summaries and previews for 24 hours. Approve only a code visible on your own display. Remove its Fire TV provider connection to revoke access.</p><button onClick={()=>void approve()}>Approve this display</button></section>}<p role="status">{message}</p></main>;
+}

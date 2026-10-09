@@ -1,2 +1,6 @@
-import{NextRequest,NextResponse}from'next/server';import{operator}from'@/lib/operator';import{connection,saveConnection}from'@/lib/vision-connection';export async function GET(req:NextRequest){const s=await operator(req);if(!s||!['admin','root'].includes(s.role))return NextResponse.json({error:'forbidden'},{status:403});return NextResponse.json({configured:!!await connection(s.orgId)})}export async function POST(req:NextRequest){const s=await operator(req);if(!s||!['admin','root'].includes(s.role))return NextResponse.json({error:'forbidden'},{status:403});const{key}=await req.json();if(typeof key!=='string'||!/^av_[a-f0-9]{64}$/.test(key))return NextResponse.json({error:'Valid AutoVision API key required'},{status:400});await saveConnection(s.orgId,key);return NextResponse.json({configured:true})}
+import {NextRequest,NextResponse} from 'next/server';
+import {operator} from '@/lib/operator';
+import {connection} from '@/lib/vision-connection';
+export async function GET(req:NextRequest){if(!await operator(req))return NextResponse.json({error:'unauthorized'},{status:401});return NextResponse.json({configured:!!await connection(),managedBy:'deployment',service:'AutoVision'},{headers:{'Cache-Control':'no-store'}});}
+export async function POST(req:NextRequest){if(!await operator(req))return NextResponse.json({error:'unauthorized'},{status:401});return NextResponse.json({error:'AutoVision is a system service. Configure SMARTDETECTOR_AUTOVISION_API_KEY in the deployment environment.'},{status:409});}
 

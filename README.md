@@ -29,7 +29,20 @@ Connected devices create separate streams of readings, video observations, and a
 
 **Signals become incidents—not another disconnected dashboard.** SmartDetector combines device ingestion, deterministic demonstration rules, an incident timeline, AutoVision motion observations, and optional Amazon Bedrock explanations. Amazon SES connects the incident workflow to the people who need to respond.
 
-For the [AWS CDS Agentic AI Partner Hackathon](https://aws-cds-partner.devpost.com/), demonstrate the actual SES notification call with configured AWS permissions and verified sending identities. Local log-mode messages are not proof of production delivery. Include the architecture, a working demonstration, and judge-access instructions; do not claim future integrations as completed features.
+Target: [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonappdev2026.devpost.com/), with **Fire TV as primary target and Ring as an additional integration target**. A project can win only one primary-track prize and one mini-challenge prize, not both track awards. See the [rules](https://amazonappdev2026.devpost.com/rules).
+
+### Requirements audit — October 9, 2026
+
+| Requirement | Status / remaining evidence |
+| --- | --- |
+| Working Fire TV app | Remote-friendly web client and administrator-approved device pairing implemented and browser-tested locally. Actual Fire TV runtime validation and distribution packaging remain required; desktop operation is not sufficient. |
+| Ring runtime integration | Server-side discovery, signed webhook, recorded-snapshot and AutoVision workflow code prepared. Real Ring account/API validation and complete OAuth onboarding remain required. |
+| AWS Builder optional challenge | Dedicated MCP AgentCore package, native CloudFormation runtime and signed AWS smoke client implemented. Verify a deployed Runtime invocation for submission evidence; local tests alone do not establish this. |
+| Source access | AGPL-3.0 license exists; verify judge access and reproducible setup for the submitted revision. |
+| Submission materials | Public English YouTube/Vimeo video under three minutes, product feedback for each API/SDK, changes during the contest window, and free judge access through judging remain to be supplied. |
+| Open Source optional challenge | Independent `techcto/smartdetector-agentcore` package prepared. Submission needs its published contribution URL, repository URL, GitHub username and description of the contribution during the contest window. |
+
+Deadline: October 23, 2026, noon PDT (3 PM EDT). Alexa remains configuration-only. The legacy AutoVision image-pair route is retained alongside the newer sampled-frame analysis workflow. Device pairing is locally tested, not a claim of Amazon certification or live deployment.
 
 ## Try SmartDetector
 
@@ -37,7 +50,7 @@ Open [smartdetector.com](https://smartdetector.com) and sign in with an account 
 
 1. Choose an organization and use **Run smoke sensor simulation** in the command center.
 2. Inspect the device observation and resulting deterministic incident.
-3. Create an AutoVision API key, then save it in Settings or Providers → AutoVision.
+3. The deployment administrator sets SMARTDETECTOR_AUTOVISION_URL and SMARTDETECTOR_AUTOVISION_API_KEY; AutoVision is a system service, not a user-configurable provider.
 4. Use **Test image detection** to add a synthetic image-pair motion observation to the active organization.
 
 The current hosted stack, `smartdetector-apphub-v011`, runs on the shared AppHub Fargate platform. The standalone CloudFormation template remains available for private installations. The stack-name suffix is historical; it is not a statement of the running release version.
@@ -48,7 +61,7 @@ The current hosted stack, `smartdetector-apphub-v011`, runs on the shared AppHub
 - Deterministic demonstration rules for smoke, temperature, and CO readings; motion and person signals are also accepted.
 - Asynchronous incident processing with optional Bedrock enrichment and configured SES email delivery.
 - Organization-scoped provider connections with AES-GCM-encrypted secrets.
-- AutoVision integration using the configured organization API key.
+- AutoVision integration using the installation-level service API key.
 - SaaS and private-install modes using the same application images.
 - Stripe Checkout and signed webhook integration, activated only after keys and price IDs are configured.
 
@@ -98,6 +111,48 @@ npm run test:web
 bash git.sh audit
 ```
 
+## Developer Signup: Ring and Fire TV
+
+These are Amazon developer accounts, separate from your SmartDetector workspace and AWS account. Never commit developer credentials, device footage, or customer identifiers.
+
+### Ring
+
+1. Visit the [Ring Developer portal](https://developer.ring.com/) and request developer registration using the [official getting-started guide](https://developer.amazon.com/docs/ring/get-started.html). Supply your contact, organization, and integration use case. Complete any verification requested by Amazon.
+2. Once access is granted, register a SmartDetector test application. The portal supplies a client ID, client secret, and webhook HMAC signing key. Keep secrets in organization-scoped provider settings, not browser code or Git.
+3. Follow the [Ring development guide](https://developer.amazon.com/docs/ring/develop.html) to link a consenting test Ring account and obtain an OAuth access token. An AWS access key is not a Ring token. The current adapter accepts a linked-account/staging token; automatic OAuth onboarding and refresh are not yet available.
+4. In SmartDetector's provider settings, configure Ring with the client credentials, linked account ID, access token, and HMAC key. The deployment administrator configures the AutoVision system service through environment variables.
+5. Register a publicly reachable HTTPS webhook in Ring for motion and doorbell events. The adapter's endpoint is `/api/v1/integrations/ring/webhook/<organization-id>/<connection-id>`. Ring cannot reach a developer machine's `localhost`; use a deployed test service or an approved HTTPS development tunnel.
+6. Use a consenting test device/account, or the official hackathon Playground if your developer access includes it. Verify device discovery, signed event delivery, recorded snapshots, AutoVision analysis, and the resulting organization-scoped review. Mocks alone do not validate a real Ring integration.
+
+Use the portal's actual account-linking flow; do not scrape consumer Ring credentials or share a personal password. API access and device/media permissions depend on the approved application and linked account.
+
+### Fire TV
+
+1. Create or sign into an [Amazon Developer account](https://developer.amazon.com/) and complete the developer profile. See [Get Started with Fire TV](https://developer.amazon.com/docs/fire-tv/get-started-with-fire-tv.html). Appstore submission and local testing are separate steps.
+2. For the HTML5 client, use a compatible Fire OS Fire TV device and install Amazon Web App Tester. Follow [Amazon's installation and hosted-app testing instructions](https://developer.amazon.com/docs/fire-tv/webapp-app-tester.html), including ADB setup where required. Vega devices use a different development toolchain; do not assume the Fire OS tester works there.
+3. When the TV client is built and running, load the service's `/tv` URL in the tester's **Hosted Apps** tab and choose **Test App**. For local development, use `http://<development-computer-LAN-IP>:8082/tv`, not `localhost`, and allow that port only on your trusted test network. Prefer HTTPS for hosted testing.
+4. On the TV, select **Get pairing code**. On your phone/computer, open the same service's `/tv/connect`, sign in with your normal SmartDetector account, and select the intended organization in the console. Return to `/tv/connect`, enter the TV code, verify the display name and organization, and explicitly approve it as a workspace administrator. No separate TV account is needed.
+5. The TV polls every five seconds and connects after approval. Codes expire after ten minutes; approved access lasts 24 hours. Removing or disabling the display's Fire TV provider connection revokes access. Re-pair after expiry. Never enter the root password, Ring secrets, or AutoVision key on the TV. The display cannot change incidents or invoke analysis.
+6. Verify D-pad navigation, Select, Back, readable layouts, refresh behavior, expired/revoked access, and organization isolation on the actual device. A desktop-browser preview is useful but is not Fire TV runtime evidence.
+
+For the Web App Tester route, choose a model explicitly listed as **Fire OS**, not Vega OS, in [Amazon's device specifications](https://developer.amazon.com/docs/device-specs/identify-fire-tv-devices.html). An older Fire TV Stick HD (2024), including a used/refurbished unit with its remote and power supply, is a budget candidate; verify price, availability, and exact generation before buying. You do not need a new television: the stick connects to an existing compatible HDMI display.
+
+### Reproducible local TV demo
+
+1. Start the local stack with `bash app.sh up` and open `http://localhost:8082` on your computer.
+2. Open `/tv` in a second browser to preview the TV layout, request a code, and approve it at `/tv/connect` using your signed-in administrator session. On a physical TV, replace `localhost` with the computer's LAN IP and use the same origin for pairing approval.
+3. Run **Run smoke sensor simulation** in the command center. This is clearly labeled synthetic test data, not an actual smoke alarm. Confirm the resulting incident appears on the paired display.
+4. Open the incident with Select, return with Back, and verify refresh. Remove the Fire TV connection in provider settings and confirm the display loses access.
+5. Source checks: `npm ci`, `npm run typecheck`, `npm run lint`, and `npm run test:web`. Pairing tests cover pending/expired codes, secret verification, concurrent approval, token tampering, tenant binding, and revocation. Real-device testing remains separate.
+
+With the local service running, run `node devops/testing/tv-pairing-smoke.mjs` for a database-backed HTTP pairing/approval/revocation check. It is restricted to localhost, uses synthetic display data, and removes its test connection. Set `SMARTDETECTOR_TEST_USER` and `SMARTDETECTOR_TEST_PASSWORD` if you changed local credentials; never use production credentials for this test.
+
+The custom pairing protocol is not a general-purpose OAuth authorization server. Both standalone and shared-platform deployments use the existing application table with TTL; no extra TV infrastructure is required.
+
+### Before account or device access
+
+Developers can run Docker Compose, inspect the console, and exercise synthetic sensor readings without Ring or Fire TV registration. Ring mock tests and desktop TV previews must be labeled as such. Real camera/API and Fire TV validation remain required before claiming those integrations are verified. The integration implementation is in progress; these instructions do not imply it has been released or deployed.
+
 ## API Examples
 
 The web entry point routes `/api/*` to the API service. Replace local URLs with `https://smartdetector.com` for an authorized hosted request. Health is public; other endpoints require their documented credentials.
@@ -117,7 +172,7 @@ A valid request returns 202 with `accepted:true` and, when a demonstration alarm
 
 ### Process an image pair through AutoVision
 
-Save the organization's AutoVision key in Providers first, then reuse the agent credential:
+Configure the installation-level AutoVision environment variables first, then reuse the agent credential:
 
 ```bash
 curl --fail-with-body http://localhost:8082/api/v1/vision \
@@ -126,7 +181,7 @@ curl --fail-with-body http://localhost:8082/api/v1/vision \
   -d '{"device_id":"demo-camera","demo":true}'
 ```
 
-The API calls AutoVision and ingests returned motion observations. A missing provider key returns 409. In AWS, set `AutoVisionUrl`; locally or in custom deployments, set `SMARTDETECTOR_AUTOVISION_URL`. Both services must be running and reachable.
+The API calls AutoVision and ingests returned motion observations. A missing system service key returns 409. In AWS, set `AutoVisionUrl`; locally or in custom deployments, set `SMARTDETECTOR_AUTOVISION_URL`. Both services must be running and reachable. Set SMARTDETECTOR_AUTOVISION_API_KEY in your ignored local .env file. In AWS, supply AutoVisionApiKeySecretArn, pointing to a Secrets Manager secret whose entire value is the API key; ECS injects it into web, API, and worker. The shared AutoVision credential is billed to its service account; SmartDetector still isolates event results by organization. Existing saved AutoVision provider records are no longer used.
 
 ## AWS Marketplace And Deployment
 
@@ -155,14 +210,31 @@ Review each resource's deletion/retention policy before removing a stack. Export
 
 ## Scope And Safety
 
-- Ring, Alexa+, and Fire TV currently have provider configuration schemas; their production adapters are not implemented.
+- Alexa+ remains a provider configuration schema only. Ring requires real-account validation and complete OAuth onboarding; the Fire TV web display supports locally tested read-only pairing but still needs physical-device validation and Appstore packaging.
 - AutoVision currently returns image-pair motion, not smoke/fire image recognition.
 - Sensor thresholds are demonstration rules, not certified alarms or life-safety equipment.
 - Optional Bedrock failures do not prevent deterministic incident persistence.
-- AgentCore runtime integration is not implemented in this repository.
+- The dedicated AgentCore adapter and CloudFormation quickstart are included as a submodule; live AWS invocation and separate Marketplace product approval are deployment verification steps.
 - Demonstrations, fixtures, and screenshots must use synthetic data only.
 
 ## License
 
 First-party code is [AGPL-3.0-or-later](LICENSE). Commercial and hosted use are allowed under its terms; modified network versions must offer Corresponding Source as required by the license. Third-party components retain their own licenses. Separate commercial terms for maintainer-owned code can be discussed through [commercial licensing](COMMERCIAL-LICENSE.md).
 
+## MCP and Amazon Bedrock AgentCore
+
+The independent [SmartDetector MCP AgentCore package](submodules/smartdetector-agentcore/README.md) wraps this application's existing REST API with five read-only tools. It runs locally or in its own ARM64 AgentCore Runtime container, without duplicating the application or granting device-control permissions.
+
+Clone with `git clone --recurse-submodules https://github.com/techcto/smartdetector.git`, or run `git submodule update --init --recursive` in an existing checkout. Log in and open **Settings → API keys** to create an organization-scoped key with `events:read` and `devices:read`. Browser sessions do not need API keys.
+
+Set `SMARTDETECTOR_MCP_API_KEY` and a different random `SMARTDETECTOR_MCP_AUTH_TOKEN` in your ignored `.env`, then start the optional MCP container:
+
+```bash
+docker compose --profile agentcore up --build
+```
+
+Connect an MCP client to `http://localhost:8083/mcp` using the local MCP token as a bearer credential. Try: “List recent SmartDetector events, inspect the newest event, and explain the supporting observations without changing anything.” The [package quickstart](submodules/smartdetector-agentcore/README.md#aws-quickstart) covers reviewed CloudFormation installation, IAM-authenticated AWS access and the separate AgentCore Marketplace release variables. The new product needs its own product ID; the ECS product ID is not reusable.
+
+Run `npm --prefix submodules/smartdetector-agentcore ci` and `node devops/testing/mcp-smoke.mjs` against a local app on port 8082 for the end-to-end REST/MCP check. Set `SMARTDETECTOR_TEST_USER` and `SMARTDETECTOR_TEST_PASSWORD` when using non-default local credentials. The test creates and revokes a temporary integration key. Optional `SMARTDETECTOR_TEST_SEED=1` also creates an explicitly synthetic sensor event retained in the local dashboard for review; it is never used against a remote deployment.
+
+Developer issues and workarounds are recorded in the [friction log](docs/friction-log.md). An actual AWS Runtime invocation must be verified separately from local MCP tests before using it as deployment evidence.

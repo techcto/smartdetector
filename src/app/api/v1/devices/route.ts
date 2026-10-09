@@ -1,3 +1,3 @@
-import{NextRequest,NextResponse}from'next/server';import{operator}from'@/lib/operator';import{store}from'@/lib/store';
-export async function GET(req:NextRequest){const session=await operator(req);if(!session)return NextResponse.json({error:'unauthorized'},{status:401});return NextResponse.json(await store.nodes(session.orgId))}
+import{NextRequest,NextResponse}from'next/server';import{readIdentity}from'@/lib/api-keys';import{store}from'@/lib/store';
+export async function GET(req:NextRequest){const identity=await readIdentity(req,'devices:read');if(!identity)return NextResponse.json({error:'unauthorized'},{status:401});const limit=Number(req.nextUrl.searchParams.get('limit')??50);if(!Number.isInteger(limit)||limit<1||limit>50)return NextResponse.json({error:'limit must be 1–50'},{status:400});return NextResponse.json((await store.nodes(identity.orgId)).slice(0,limit).map(v=>({serverId:v.serverId,displayName:v.displayName,platform:v.platform,tags:v.tags,status:v.status,createdAt:v.createdAt,lastHeartbeat:v.lastHeartbeat})),{headers:{'cache-control':'no-store'}})}
 

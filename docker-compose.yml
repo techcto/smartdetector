@@ -28,7 +28,8 @@
         "STRIPE_WEBHOOK_SECRET": "${STRIPE_WEBHOOK_SECRET:-}",
         "STRIPE_STARTER_PRICE_ID": "${STRIPE_STARTER_PRICE_ID:-}",
         "STRIPE_SCALE_PRICE_ID": "${STRIPE_SCALE_PRICE_ID:-}",
-        "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}"
+        "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}",
+        "SMARTDETECTOR_AUTOVISION_API_KEY": "${SMARTDETECTOR_AUTOVISION_API_KEY:-}"
       },
       "ports": [
         "${SMARTDETECTOR_WEB_PORT:-8082}:3000"
@@ -85,7 +86,8 @@
         "STRIPE_WEBHOOK_SECRET": "${STRIPE_WEBHOOK_SECRET:-}",
         "STRIPE_STARTER_PRICE_ID": "${STRIPE_STARTER_PRICE_ID:-}",
         "STRIPE_SCALE_PRICE_ID": "${STRIPE_SCALE_PRICE_ID:-}",
-        "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}"
+        "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}",
+        "SMARTDETECTOR_AUTOVISION_API_KEY": "${SMARTDETECTOR_AUTOVISION_API_KEY:-}"
       },
       "ports": [
         "127.0.0.1:${SMARTDETECTOR_API_PORT:-3201}:3001"
@@ -142,7 +144,8 @@
         "STRIPE_WEBHOOK_SECRET": "${STRIPE_WEBHOOK_SECRET:-}",
         "STRIPE_STARTER_PRICE_ID": "${STRIPE_STARTER_PRICE_ID:-}",
         "STRIPE_SCALE_PRICE_ID": "${STRIPE_SCALE_PRICE_ID:-}",
-        "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}"
+        "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}",
+        "SMARTDETECTOR_AUTOVISION_API_KEY": "${SMARTDETECTOR_AUTOVISION_API_KEY:-}"
       },
       "depends_on": {
         "smartdetector-dynamodb": {
@@ -202,6 +205,33 @@
         "interval": "5s",
         "timeout": "3s",
         "retries": 30
+      }
+    },
+    "smartdetector-agentcore": {
+      "profiles": [
+        "agentcore"
+      ],
+      "init": true,
+      "build": {
+        "context": "./submodules/smartdetector-agentcore",
+        "dockerfile": "devops/docker/Dockerfile.agentcore"
+      },
+      "environment": {
+        "SMARTDETECTOR_API_URL": "http://smartdetector-api:3001",
+        "SMARTDETECTOR_API_KEY": "${SMARTDETECTOR_MCP_API_KEY:-}",
+        "SMARTDETECTOR_MCP_AUTH_TOKEN": "${SMARTDETECTOR_MCP_AUTH_TOKEN:-}"
+      },
+      "ports": [
+        "127.0.0.1:${SMARTDETECTOR_MCP_PORT:-8083}:8000"
+      ],
+      "read_only": true,
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "depends_on": {
+        "smartdetector-api": {
+          "condition": "service_healthy"
+        }
       }
     }
   },

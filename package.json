@@ -12,8 +12,10 @@
     "start": "next start",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test:web": "tsx --test tests/platform.test.ts",
-    "worker": "tsx src/worker/index.ts"
+    "test:web": "tsx --test tests/*.test.ts",
+    "worker": "tsx src/worker/index.ts",
+    "agentcore:dev": "npm --prefix submodules/smartdetector-agentcore start",
+    "test:agentcore": "npm --prefix submodules/smartdetector-agentcore test"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "3.1136.0",
@@ -24,6 +26,7 @@
     "@aws-sdk/client-socialmessaging": "^3.1136.0",
     "@aws-sdk/client-sqs": "^3.1136.0",
     "@aws-sdk/lib-dynamodb": "^3.1136.0",
+    "@smartdetector/agentcore": "file:submodules/smartdetector-agentcore",
     "bootstrap": "^5.3.3",
     "next": "^16.3.8",
     "react": "^19.3.0",
@@ -41,6 +44,7 @@
   },
   "overrides": {
     "postcss": "8.5.28",
-    "sharp": "0.35.4"
+    "sharp": "0.35.5",
+    "source-map-js": "1.2.2"
   }
 }

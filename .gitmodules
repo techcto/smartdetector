@@ -1,0 +1,3 @@
+[submodule "submodules/smartdetector-agentcore"]
+	path = submodules/smartdetector-agentcore
+	url = https://github.com/techcto/smartdetector-agentcore.git
