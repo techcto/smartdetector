@@ -2,7 +2,8 @@
 import {ReactNode, useEffect, useRef} from 'react';
 
 export default function Drawer({open,title,onClose,children}:{open:boolean;title:string;onClose:()=>void;children:ReactNode}){
-  const ref=useRef<HTMLDivElement>(null),closeRef=useRef(onClose);closeRef.current=onClose;
+  const ref=useRef<HTMLDivElement>(null),closeRef=useRef(onClose);
+  useEffect(()=>{closeRef.current=onClose},[onClose]);
   useEffect(()=>{
     if(!open)return;
     const previous=document.activeElement as HTMLElement|null,overflow=document.body.style.overflow;

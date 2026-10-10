@@ -1,4 +1,4 @@
-import {visionConfig} from '@/lib/system-vision';
+import {visionConfig} from './system-vision';
 import {createHash} from "node:crypto";
 import {connection} from "./vision-connection";
 import {store} from "./store";
