@@ -1,3 +1,4 @@
+import {objectDetections,detectionFrames} from './object-detections';
 type ObjectValue = Record<string, unknown>;
 const object = (v: unknown): ObjectValue => v && typeof v === 'object' && !Array.isArray(v) ? v as ObjectValue : {};
 const text = (v: unknown) => typeof v === 'string' ? v : '';
@@ -16,5 +17,6 @@ export function eventView(payload: unknown) {
     const row = object(v);
     return { type: text(row.type), value: typeof row.value === 'number' && Number.isFinite(row.value) ? row.value : null, detected: row.detected === true, advisory: row.advisory === true };
   }) : [];
-  return { source, kind, preview, synthetic: signal.simulated === true, aiSummary: aiSummary || text(classification.summary), assessment: text(value.assessment), observations, signalValue: typeof signal.value === 'number' ? signal.value : null, autoVisionJobId: text(value.autoVisionJobId), classificationStatus: text(classification.status) };
+  const evidenceFrames=Array.isArray(value.evidenceFrames)?value.evidenceFrames.slice(0,12).flatMap(f=>{const v=object(f),p=text(v.preview);return typeof v.at_ms==='number'&&Number.isFinite(v.at_ms)&&v.at_ms>=0&&v.at_ms<=30000&&p.length<=60100&&/^data:image\/(jpeg|png);base64,[a-zA-Z0-9+/]+=*$/.test(p)?[{at_ms:v.at_ms,preview:p,detections:objectDetections(v.detections)}]:[]}):[];
+  return { source, kind, preview, evidenceFrames, detectionFrames:detectionFrames(value.detectionFrames), synthetic: signal.simulated === true, aiSummary: aiSummary || text(classification.summary), assessment: text(value.assessment), observations, signalValue: typeof signal.value === 'number' ? signal.value : null, autoVisionJobId: text(value.autoVisionJobId), classificationStatus: text(classification.status) };
 }

@@ -1,0 +1,12 @@
+/** Integration catalog is separate from location-owned device instances and credentials. */
+export type DeviceModel = {id:string;providerKey:string;name:string;description:string;capabilities:string[]};
+export const deviceModels:DeviceModel[]=[
+  {id:'ring-doorbell',providerKey:'ring',name:'Video Doorbell',description:'Bring doorbell presses and shared camera snapshots into your event feed. Requires Ring API access and media permissions.',capabilities:['camera','doorbell','snapshots','events']},
+  {id:'ring-spotlight',providerKey:'ring',name:'Spotlight Cam',description:'Review motion observations from an authorized outdoor camera. Light and siren controls are not implemented.',capabilities:['camera','outdoor','snapshots','events']},
+  {id:'ring-floodlight',providerKey:'ring',name:'Floodlight Cam',description:'Analyze snapshots from your shared floodlight camera. SmartDetector does not control the floodlights.',capabilities:['camera','outdoor','snapshots','events']},
+  {id:'ring-indoor',providerKey:'ring',name:'Indoor / Stick Up Cam',description:'Connect an authorized indoor or general-purpose Ring camera for event review and sampled-frame analysis.',capabilities:['camera','snapshots','events']},
+  {id:'ring-camera',providerKey:'ring',name:'Ring camera',description:'Discover linked cameras using your approved Ring account connection. Device capabilities depend on the Ring API.',capabilities:['camera','snapshots','events']},
+  {id:'firetv-display',providerKey:'firetv',name:'Fire TV display',description:'Pair a read-only event display with a short-lived device code.',capabilities:['display','device-pairing']},
+];
+export const providerDescriptions:Record<string,string>={ring:'Connect the cameras you authorize in Ring. Turn motion and doorbell events into visual observations, AI context, and a personalized event feed.',firetv:'Take your event dashboard to the big screen. Pair a Fire TV display securely with a short-lived code, without typing your password on the TV.',alexa:'Voice-powered event review is planned. This integration is not available for connection yet.',bedrock:'AI event summaries run through the installation’s AWS permissions. Per-location model connections are not available yet.'};
+export function deviceIntegration(device:{serverId:string;platform?:string}){if(device.serverId.startsWith('ring-')||device.platform==='ring')return 'ring';if(device.platform==='firetv')return 'firetv';return null;}

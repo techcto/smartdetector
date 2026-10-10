@@ -1,8 +1,20 @@
-import MarketplaceSubscribe from './marketplace-subscribe';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import './globals.css';
 import './events.css';
-import Link from 'next/link';import{cookies}from'next/headers';import'bootstrap/dist/css/bootstrap.min.css';import'./globals.css';import{sessionCookie,verifySession}from'@/lib/session';import{store}from'@/lib/store';import UserMenu from'./user-menu';import OrgPicker from'./org-picker';
-export const metadata={metadataBase:new URL('https://smartdetector.com'),alternates:{canonical:'/'},title:'SmartDetector',description:'SmartDetector command console'};
-export default async function Layout({children}:{children:React.ReactNode}){const jar=await cookies(),s=await verifySession(jar.get(sessionCookie)?.value,process.env.SMARTDETECTOR_SESSION_SECRET??'');if(!s)return<html lang="en"><body>{children}</body></html>;const org=s.orgId?await store.organizationById(s.orgId):null;return<html lang="en"><body><div className="shell-with-nav"><aside className="side-nav"><Link className="brand" href="/">SmartDetector</Link>{process.env.SMARTDETECTOR_DEPLOYMENT_MODE==='saas'&&<OrgPicker activeOrgId={s.orgId} activeOrgName={org?.name??'Select organization'} isRoot={s.role==='root'}/>}<nav className="nav nav-vertical"><Link href="/">Command center</Link><Link href="/users">Users</Link><Link href="/providers">Providers</Link><Link href="/tv/connect">Connect TV</Link><Link href="/settings">Settings</Link><Link href="/settings/api-keys">API keys</Link><Link href="/settings/billing">Billing</Link></nav><MarketplaceSubscribe/></aside><div className="position-fixed top-0 end-0 m-3 z-3"><UserMenu id={s.id} displayName={s.username} role={s.role}/></div><main className="content-area">{children}</main></div></body></html>}
-
-
-
+import './public.css';
+import './console-nav.css';
+import {cookies} from 'next/headers';
+import {sessionCookie,verifySession} from '@/lib/session';
+import {store} from '@/lib/store';
+import UserMenu from './user-menu';
+import OrgPicker from './org-picker';
+import ConsoleNavigation from './console-navigation';
+import ConsoleShell from './console-shell';
+export const metadata={metadataBase:new URL('https://smartdetector.com'),title:'SmartDetector — Your smart devices. One personalized dashboard.',description:'Connect supported smart devices, receive and process events with AI, and review detected activity in your personalized dashboard. Ring event intake, Fire TV display, and more integrations coming soon.'};
+export default async function Layout({children}:{children:React.ReactNode}){
+ const jar=await cookies(),s=await verifySession(jar.get(sessionCookie)?.value,process.env.SMARTDETECTOR_SESSION_SECRET??'');
+ if(!s)return <html lang="en"><body>{children}</body></html>;
+ const org=s.orgId?await store.organizationById(s.orgId):null;
+ const saas=process.env.SMARTDETECTOR_DEPLOYMENT_MODE==='saas';
+ return <html lang="en"><body><ConsoleShell navigation={<ConsoleNavigation saas={saas}/>} menu={<>{saas?<OrgPicker activeOrgId={s.orgId} activeOrgName={org?.name??'Select location'} isRoot={s.role==='root'}/>:<span className="console-private-label">Private installation</span>}<UserMenu id={s.id} displayName={s.username} role={s.role}/></>}>{children}</ConsoleShell></body></html>;
+}

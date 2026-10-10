@@ -1,5 +1,5 @@
 import {createHmac, timingSafeEqual, createHash} from "node:crypto";
-import {connectionCredentials} from "./providers";
+import {ringAccess} from "./ring-link";
 import {analyzeFrames} from "./vision-analysis";
 
 export function verifyRingSignature(raw: string, signature: string, secret: string) {
@@ -18,16 +18,33 @@ export function parseRingEvent(raw: string, now = Date.now()): RingEvent {
 export class RingClient {
   constructor(private token: string, private fetcher: typeof fetch = fetch) {}
   async devices() {
-    const r = await this.fetcher("https://api.amazonvision.com/v1/devices", {headers: {Authorization: "Bearer " + this.token}, signal: AbortSignal.timeout(15000), redirect: "error"});
+    const r = await this.fetcher("https://api.amazonvision.com/v1/devices?include=capabilities", {headers: {Authorization: "Bearer " + this.token}, signal: AbortSignal.timeout(15000), redirect: "error"});
     if (!r.ok) throw new Error("Ring device discovery failed (HTTP " + r.status + ")");
-    return r.json();
+    const document=await r.json();
+    if(!Array.isArray(document.data))throw new Error('Invalid Ring discovery response');
+    // Do not offer sensors or chimes as cameras just because they share an account.
+    const included=Array.isArray(document.included)?document.included:[];
+    return {...document,data:document.data.filter((d:{relationships?:{capabilities?:{data?:{id?:string}}}})=>{const id=d.relationships?.capabilities?.data?.id;const caps=included.find((c:{id?:string;type?:string})=>id&&c.id===id&&c.type==='device-capabilities')?.attributes;return (Array.isArray(caps?.video?.codecs)&&caps.video.codecs.length>0)||caps?.components?.items?.some((c:{component_type?:string})=>c.component_type==='lens')})};
   }
-  async snapshot(deviceId: string, timestamp: number, componentId?: string) {
+  async snapshot(deviceId: string, timestamp: number, componentId?: string, latest=false): Promise<string> {
     if (!/^[a-zA-Z0-9_.:-]{1,200}$/.test(deviceId) || !Number.isSafeInteger(timestamp)) throw new Error("Invalid Ring media request");
-    const r = await this.fetcher("https://api.amazonvision.com/v1/devices/" + encodeURIComponent(deviceId) + "/media/image/download", {method: "POST", headers: {Authorization: "Bearer " + this.token, "Content-Type": "application/json"}, body: JSON.stringify({type: "at_timestamp", timestamp, image_options: {format: "jpeg", resolution: {width: 640, height: 360}}, ...(componentId ? {components: [{component_id: componentId}]} : {})}), redirect: "manual", signal: AbortSignal.timeout(15000)});
+    const r = await this.fetcher("https://api.amazonvision.com/v1/devices/" + encodeURIComponent(deviceId) + "/media/image/download", {method: "POST", headers: {Authorization: "Bearer " + this.token, "Content-Type": "application/json"}, body: JSON.stringify({...latest?{type:'latest_in_range',start_timestamp:timestamp-86400000,end_timestamp:timestamp}:{type:'at_timestamp',timestamp}, image_options: {format: "jpeg", resolution: {width: 640, height: 360}}, ...(componentId ? {components: [{component_id: componentId}]} : {})}), redirect: "manual", signal: AbortSignal.timeout(15000)});
+    if (r.status === 403 && latest) {
+      const error = await r.json().catch(() => null);
+      if (error?.errors?.some((e: {code?: string}) => e.code === 'TIME_RANGE_NOT_AUTHORIZED')) {
+        // Ring history is consent-filtered. Do not guess a range before consent.
+        const history = await this.fetcher('https://api.amazonvision.com/v1/history/devices/' + encodeURIComponent(deviceId) + '/events', {headers: {Authorization: 'Bearer ' + this.token}, redirect: 'error', signal: AbortSignal.timeout(15000)});
+        if (!history.ok) throw new Error('Ring authorized history unavailable (HTTP ' + history.status + ')');
+        const document = await history.json();
+        const times = (Array.isArray(document.data) ? document.data : []).map((e: {attributes?: {start?: unknown}}) => Number(e.attributes?.start)).filter((t: number) => Number.isSafeInteger(t) && t > 0 && t <= timestamp && t >= timestamp - 86400000);
+        if (!times.length) throw new Error('No authorized recent Ring recording available');
+        return this.snapshot(deviceId, Math.max(...times), componentId);
+      }
+    }
     if (r.status !== 303) throw new Error("Ring snapshot unavailable (HTTP " + r.status + ")");
     const url = new URL(r.headers.get("location") || "");
-    if (url.protocol !== "https:" || url.username || url.password || url.port || !["amazonvision.com", "ring.com", "amazonaws.com"].some(d => url.hostname === d || url.hostname.endsWith("." + d))) throw new Error("Untrusted Ring media redirect");
+    const ringDownload = /^download-[a-z]{2}(?:-[a-z]+)+-\d\.prod\.phoenix\.devices\.amazon\.dev$/.test(url.hostname);
+    if (url.protocol !== "https:" || url.username || url.password || url.port || !(ringDownload || ["amazonvision.com", "ring.com", "amazonaws.com"].some(d => url.hostname === d || url.hostname.endsWith("." + d)))) throw new Error("Untrusted Ring media redirect");
     // Never forward OAuth credentials to a pre-signed media URL.
     const media = await this.fetcher(url, {redirect: "error", signal: AbortSignal.timeout(15000)});
     if (!media.ok || !/^image\/(jpeg|png)(;|$)/i.test(media.headers.get("content-type") || "")) throw new Error("Invalid Ring image response");
@@ -40,11 +57,11 @@ export class RingClient {
   }
 }
 export async function processRingEvent(orgId: string, connectionId: string, event: RingEvent, fetcher: typeof fetch = fetch) {
-  const config = await connectionCredentials(orgId, connectionId, "ring");
+  const config = await ringAccess(orgId, connectionId, fetcher);
   if (!config?.accessToken || config.accountId !== event.accountId) throw new Error("Ring account not authorized for organization");
   const client = new RingClient(config.accessToken, fetcher), frames = [];
   // Three snapshots from recorded media, not an invented full-video upload API.
   for (const offset of [0, 1000, 2000]) frames.push({image: await client.snapshot(event.deviceId, event.timestamp + offset, event.componentId), at_ms: offset});
   const deviceId = "ring-" + createHash("sha256").update(event.deviceId).digest("hex").slice(0,24);
-  return analyzeFrames(orgId, deviceId, frames, true, "ring", connectionId + ":" + event.requestId, fetcher);
+  return analyzeFrames(orgId, deviceId, frames, true, "ring", connectionId + ":" + event.requestId, fetcher,event.timestamp);
 }

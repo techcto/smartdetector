@@ -1,8 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {beginTvPairing, approveTvPairing, pollTvPairing, inspectTvPairing} from '../src/lib/tv-pairing';
-import {authorizeTv} from '../src/lib/tv';
-import {removeSetting} from '../src/lib/providers';
+import {authorizeTv,disconnectTv} from '../src/lib/tv';
 import {store} from '../src/lib/store';
 test('TV pairing binds approval to organization, rejects guesses and reuse, and supports revocation', async () => {
   process.env.SMARTDETECTOR_SESSION_SECRET = 'synthetic-tv-secret-at-least-32-characters';
@@ -20,8 +19,11 @@ test('TV pairing binds approval to organization, rejects guesses and reuse, and 
   assert.ok(result.token);
   const access = await authorizeTv(result.token!); assert.equal(access?.orgId,org.id); assert.equal(access?.purpose,'tv-feed');
   assert.equal(await authorizeTv(result.token!+'tampered'),null);
-  await removeSetting(org.id,access!.connectionId);
+  assert.equal(await disconnectTv('synthetic-other-location',access!.connectionId),false);
+  assert.ok(await authorizeTv(result.token!));
+  assert.equal(await disconnectTv(org.id,access!.connectionId),true);
   assert.equal(await authorizeTv(result.token!),null);
+  assert.equal((await store.node(org.id,'firetv-'+access!.connectionId))?.status,'offline');
 });
 test('only one concurrent approval can succeed',async()=>{
   process.env.SMARTDETECTOR_SESSION_SECRET = 'synthetic-tv-secret-at-least-32-characters';

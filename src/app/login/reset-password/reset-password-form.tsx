@@ -17,10 +17,10 @@ export default function ResetPasswordForm(){
   }
   if(!token)return <p className="form-error">This reset link is missing its token. Request a new one.</p>;
   return <form className="login-form" onSubmit={submit}>
-    <label>New password<input name="password" type="password" minLength={12} autoComplete="new-password" required autoFocus/></label>
+    <label>New password<input className="form-control" name="password" type="password" minLength={12} autoComplete="new-password" required autoFocus/></label>
     <span className="muted small">Use at least 12 characters.</span>
     {error&&<p className="form-error" role="alert">{error}</p>}
-    <button className="button primary" disabled={busy}>{busy?'Please wait…':'Set new password'}</button>
+    <button className="btn button primary btn-primary" disabled={busy}>{busy?'Please wait…':'Set new password'}</button>
   </form>;
 }
 

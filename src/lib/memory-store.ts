@@ -1,6 +1,7 @@
 import{randomUUID}from'node:crypto';
 import type{SmartDetectorEvent,SmartDetectorUser,IncidentRecord,Node,OrgMembership,Organization,OrgType,Product,Settings,Subscription}from'./model';
 import{defaultSettings}from'./model';
+import{markHistoryPurge,memoryHistoryCutoff}from'./history-privacy';
 type State={orgs:Map<string,Organization>;singletonOrgId?:string;memberships:Map<string,OrgMembership>;nodes:Map<string,Node>;incidents:Map<string,IncidentRecord>;events:Map<string,SmartDetectorEvent[]>;users:Map<string,SmartDetectorUser>;passwords:Map<string,string>;subscriptions:Map<string,Subscription>;settings:Map<string,Settings>};
 const g=globalThis as typeof globalThis&{smartdetectorState?:State};
 export const state:State=g.smartdetectorState??={orgs:new Map(),memberships:new Map(),nodes:new Map(),incidents:new Map(),events:new Map(),users:new Map(),passwords:new Map(),subscriptions:new Map(),settings:new Map()};
@@ -10,6 +11,7 @@ const membershipKey=(orgId:string,userId:string)=>`${orgId}\0${userId}`;
 const MAX_EVENTS_PER_NODE=200;
 function slugify(name:string){return name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||randomUUID().slice(0,8)}
 export const memoryStore={
+  async purgeHistory(orgId:string){const cutoff=await markHistoryPurge(orgId);let deleted=0;for(const [k,v]of state.incidents)if(v.tenantId===orgId&&Date.parse(v.startedAt)<=cutoff){state.incidents.delete(k);deleted++}for(const [k,rows]of state.events){const kept=rows.filter(v=>v.tenantId!==orgId||Date.parse(v.at)>cutoff);deleted+=rows.length-kept.length;if(kept.length)state.events.set(k,kept);else state.events.delete(k)}return{deleted,cutoff}},
   async createOrganization(v:{name:string;ownerId:string;orgType:OrgType;contactEmail?:string;contactPhone?:string}):Promise<Organization>{
     const org:Organization={id:randomUUID(),name:v.name,slug:`${slugify(v.name)}-${randomUUID().slice(0,6)}`,ownerId:v.ownerId,orgType:v.orgType,contactEmail:v.contactEmail,contactPhone:v.contactPhone,enrollmentToken:randomUUID(),createdAt:new Date().toISOString()};
     state.orgs.set(org.id,org);
@@ -38,11 +40,11 @@ export const memoryStore={
   async upsertNode(v:Node){const existing=state.nodes.get(key(v.tenantId,v.serverId));state.nodes.set(key(v.tenantId,v.serverId),{...existing,...v,createdAt:existing?.createdAt??v.createdAt})},
   async nodes(tenant:string){return[...state.nodes.values()].filter(x=>x.tenantId===tenant)},
   async node(tenant:string,serverId:string){return state.nodes.get(key(tenant,serverId))??null},
-  async putIncident(v:IncidentRecord){state.incidents.set(key(v.tenantId,v.incidentId),v)},
+  async putIncident(v:IncidentRecord){if(Date.parse(v.startedAt)<=memoryHistoryCutoff(v.tenantId))throw Error('History was purged');state.incidents.set(key(v.tenantId,v.incidentId),v)},
   async incident(tenant:string,incidentId:string){return state.incidents.get(key(tenant,incidentId))??null},
   async incidents(tenant:string){return[...state.incidents.values()].filter(x=>x.tenantId===tenant)},
   async incidentsForNode(tenant:string,serverId:string){return[...state.incidents.values()].filter(x=>x.tenantId===tenant&&x.serverId===serverId)},
-  async putEvent(v:SmartDetectorEvent){const k=key(v.tenantId,v.serverId),list=state.events.get(k)??[];list.push(v);if(list.length>MAX_EVENTS_PER_NODE)list.shift();state.events.set(k,list)},
+  async putEvent(v:SmartDetectorEvent){if(Date.parse(v.at)<=memoryHistoryCutoff(v.tenantId))throw Error('History was purged');const k=key(v.tenantId,v.serverId),list=state.events.get(k)??[];list.push(v);if(list.length>MAX_EVENTS_PER_NODE)list.shift();state.events.set(k,list)},
   async eventsForNode(tenant:string,serverId:string,limit=200){return(state.events.get(key(tenant,serverId))??[]).slice(-limit).reverse()},
   async userByName(username:string){return[...state.users.values()].find(x=>x.username.toLowerCase()===username.toLowerCase())??null},
   async userById(id:string){return state.users.get(id)??null},

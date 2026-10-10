@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {connection} from '../src/lib/vision-connection';
 import {providers} from '../src/lib/providers';
 import {readFileSync} from 'node:fs';
-test('AutoVision uses only the installation environment, not workspace providers',async()=>{
+test('AutoVision falls back to the installation environment, not workspace providers',async()=>{
   const previous=process.env.SMARTDETECTOR_AUTOVISION_API_KEY;
   try{
     delete process.env.SMARTDETECTOR_AUTOVISION_API_KEY;

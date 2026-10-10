@@ -13,7 +13,7 @@ CONNECTED SIGNALS. CLEAR INCIDENTS. FASTER RESPONSE.
 [![CI](https://github.com/techcto/smartdetector/actions/workflows/ci.yml/badge.svg)](https://github.com/techcto/smartdetector/actions/workflows/ci.yml)
 [![Open in GitHub](https://img.shields.io/badge/Open%20in-GitHub-181717?logo=github)](https://github.com/techcto/smartdetector)
 
-SmartDetector is an open-source incident console that turns device observations into organization-scoped incidents, optional AI explanations, and email alerts. It connects to AutoVision for image-pair motion detection and keeps provider credentials inside each organization.
+SmartDetector connects smart-device events into a location-scoped security journal, with sampled visual evidence, AutoVision analysis, optional AI context, and a Fire TV review console. Customer device connections stay scoped to their location; installation-level developer credentials and the AutoVision service key are managed separately by root in **Account → Admin**.
 
 [Website](https://smartdetector.com) · [Source](https://github.com/techcto/smartdetector) · [Deployment guide](devops/cloudformation/README.md)
 
@@ -36,7 +36,7 @@ Target: [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonappdev202
 | Requirement | Status / remaining evidence |
 | --- | --- |
 | Working Fire TV app | Remote-friendly web client and administrator-approved device pairing implemented and browser-tested locally. Actual Fire TV runtime validation and distribution packaging remain required; desktop operation is not sufficient. |
-| Ring runtime integration | Server-side discovery, signed webhook, recorded-snapshot and AutoVision workflow code prepared. Real Ring account/API validation and complete OAuth onboarding remain required. |
+| Ring runtime integration | Ring-initiated account linking, encrypted tokens/refresh, nonce validation, authorized camera discovery, signed webhooks, and the snapshot-to-AutoVision workflow implemented. Local automated/browser checks pass; real-account/API validation remains required. |
 | AWS Builder optional challenge | Dedicated MCP AgentCore package, native CloudFormation runtime and signed AWS smoke client implemented. Verify a deployed Runtime invocation for submission evidence; local tests alone do not establish this. |
 | Source access | AGPL-3.0 license exists; verify judge access and reproducible setup for the submitted revision. |
 | Submission materials | Public English YouTube/Vimeo video under three minutes, product feedback for each API/SDK, changes during the contest window, and free judge access through judging remain to be supplied. |
@@ -50,7 +50,7 @@ Open [smartdetector.com](https://smartdetector.com) and sign in with an account 
 
 1. Choose an organization and use **Run smoke sensor simulation** in the command center.
 2. Inspect the device observation and resulting deterministic incident.
-3. The deployment administrator sets SMARTDETECTOR_AUTOVISION_URL and SMARTDETECTOR_AUTOVISION_API_KEY; AutoVision is a system service, not a user-configurable provider.
+3. Root configures AutoVision in **Account → Admin**; deployment environment variables remain a fallback. AutoVision is a system service, not a user-configurable provider.
 4. Use **Test image detection** to add a synthetic image-pair motion observation to the active organization.
 
 The current hosted stack, `smartdetector-apphub-v011`, runs on the shared AppHub Fargate platform. The standalone CloudFormation template remains available for private installations. The stack-name suffix is historical; it is not a statement of the running release version.
@@ -119,9 +119,9 @@ These are Amazon developer accounts, separate from your SmartDetector workspace 
 
 1. Visit the [Ring Developer portal](https://developer.ring.com/) and request developer registration using the [official getting-started guide](https://developer.amazon.com/docs/ring/get-started.html). Supply your contact, organization, and integration use case. Complete any verification requested by Amazon.
 2. Once access is granted, register a SmartDetector test application. The portal supplies a client ID, client secret, and webhook HMAC signing key. Keep secrets in organization-scoped provider settings, not browser code or Git.
-3. Follow the [Ring development guide](https://developer.amazon.com/docs/ring/develop.html) to link a consenting test Ring account and obtain an OAuth access token. An AWS access key is not a Ring token. The current adapter accepts a linked-account/staging token; automatic OAuth onboarding and refresh are not yet available.
-4. In SmartDetector's provider settings, configure Ring with the client credentials, linked account ID, access token, and HMAC key. The deployment administrator configures the AutoVision system service through environment variables.
-5. Register a publicly reachable HTTPS webhook in Ring for motion and doorbell events. The adapter's endpoint is `/api/v1/integrations/ring/webhook/<organization-id>/<connection-id>`. Ring cannot reach a developer machine's `localhost`; use a deployed test service or an approved HTTPS development tunnel.
+3. Follow the [local Ring testing guide](docs/ring-local-testing.md). SmartDetector implements Ring-initiated account linking: server-side code exchange, encrypted pending tokens, HMAC nonce verification, explicit administrator confirmation, and token refresh. An AWS access key is not a Ring token.
+4. Open **Devices → Ring → Connect provider** and save the staging Client ID, Client Secret, and HMAC key. Open the same app through an HTTPS tunnel; the connection drawer generates all four location/connection-scoped URLs to copy into Ring's staging settings. The deployment administrator configures the AutoVision system service through environment variables.
+5. Start account linking from Ring's staging/testing workflow, share a camera, sign in to SmartDetector, and confirm the connection. Choose a supported device type, discover the cameras authorized for that account, and connect one. The optional partner-initiated OAuth allowlist is not required for this implemented flow.
 6. Use a consenting test device/account, or the official hackathon Playground if your developer access includes it. Verify device discovery, signed event delivery, recorded snapshots, AutoVision analysis, and the resulting organization-scoped review. Mocks alone do not validate a real Ring integration.
 
 Use the portal's actual account-linking flow; do not scrape consumer Ring credentials or share a personal password. API access and device/media permissions depend on the approved application and linked account.
@@ -210,7 +210,7 @@ Review each resource's deletion/retention policy before removing a stack. Export
 
 ## Scope And Safety
 
-- Alexa+ remains a provider configuration schema only. Ring requires real-account validation and complete OAuth onboarding; the Fire TV web display supports locally tested read-only pairing but still needs physical-device validation and Appstore packaging.
+- Alexa+ remains a provider configuration schema only. Ring account linking and device selection have automated synthetic/mock coverage; final validation requires a consenting real Ring account and camera. The Fire TV web display supports locally tested read-only pairing but still needs physical-device validation and Appstore packaging.
 - AutoVision currently returns image-pair motion, not smoke/fire image recognition.
 - Sensor thresholds are demonstration rules, not certified alarms or life-safety equipment.
 - Optional Bedrock failures do not prevent deterministic incident persistence.

@@ -1,4 +1,4 @@
-export async function readBody(request: Request, limit: number) {
+export async function readBody(request: Pick<Request,'headers'|'body'>, limit: number) {
   if (Number(request.headers.get("content-length")) > limit) throw new Error("Request too large");
   const reader = request.body?.getReader(); if (!reader) throw new Error("Body required");
   const chunks: Uint8Array[] = []; let size = 0;

@@ -378,7 +378,8 @@
                     "dynamodb:PutItem",
                     "dynamodb:DeleteItem",
                     "dynamodb:Query",
-                    "dynamodb:UpdateItem"
+                    "dynamodb:UpdateItem",
+                    "dynamodb:ConditionCheckItem"
                   ],
                   "Resource": [
                     {

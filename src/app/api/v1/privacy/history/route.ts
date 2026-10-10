@@ -1,0 +1,7 @@
+import {NextRequest,NextResponse} from 'next/server';
+import {operator} from '@/lib/operator';
+import {store} from '@/lib/store';
+import {requestOrigin} from '@/lib/session';
+import {readBody} from '@/lib/read-body';
+export async function GET(req:NextRequest){const s=await operator(req);if(!s||!['root','admin'].includes(s.role))return NextResponse.json({error:'forbidden'},{status:403});const org=await store.organizationById(s.orgId);if(!org)return NextResponse.json({error:'Location not found'},{status:404});return NextResponse.json({locationId:org.id,locationName:org.name},{headers:{'Cache-Control':'no-store'}})}
+export async function DELETE(req:NextRequest){const s=await operator(req);if(!s||!['root','admin'].includes(s.role)||req.headers.get('origin')!==requestOrigin(req))return NextResponse.json({error:'forbidden'},{status:403});try{const v=JSON.parse(await readBody(req,2048));if(v.confirmation!=='DELETE HISTORY'||v.locationId!==s.orgId)return NextResponse.json({error:'Confirm DELETE HISTORY for the active location'},{status:400});if(!await store.organizationById(s.orgId))return NextResponse.json({error:'Location not found'},{status:404});const result=await store.purgeHistory(s.orgId);return NextResponse.json({...result,scope:'active-location',devicesPreserved:true},{headers:{'Cache-Control':'no-store'}})}catch{return NextResponse.json({error:'History cleanup did not complete. Please retry; devices and connections are unchanged.'},{status:503})}}

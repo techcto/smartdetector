@@ -1,0 +1,5 @@
+import {NextRequest,NextResponse} from 'next/server';
+import {operator} from '@/lib/operator';
+import {setting} from '@/lib/providers';
+import {requestOrigin} from '@/lib/session';
+export async function GET(req:NextRequest){const s=await operator(req);if(!s||s.role!=='root')return NextResponse.json({error:'forbidden'},{status:403});const id=req.nextUrl.searchParams.get('connectionId')??'';const c=await setting(s.orgId,id);if(!c||c.providerKey!=='ring')return NextResponse.json({error:'Connection not found'},{status:404});const origin=requestOrigin(req),suffix=encodeURIComponent(s.orgId)+'/'+encodeURIComponent(id);return NextResponse.json({https:origin.startsWith('https://'),urls:{'Account Link URL':`${origin}/ring/link?orgId=${encodeURIComponent(s.orgId)}&connectionId=${encodeURIComponent(id)}`,'App Homepage URL':`${origin}/devices/integrations/ring`,'Token Exchange URL':`${origin}/api/v1/integrations/ring/token/${suffix}`,'Webhook URL':`${origin}/api/v1/integrations/ring/webhook/${suffix}`}}, {headers:{'Cache-Control':'no-store'}})}

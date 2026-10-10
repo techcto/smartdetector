@@ -4,7 +4,7 @@ import OrganizationsConsole from './organizations-console';
 export default async function Organizations(){
   const jar=await cookies();
   const session=await verifySession(jar.get(sessionCookie)?.value,process.env.SMARTDETECTOR_SESSION_SECRET??'');
-  if(process.env.SMARTDETECTOR_DEPLOYMENT_MODE!=='saas'||session?.role!=='root')return <main><section className="hero"><div className="eyebrow">Organizations</div><h1>Not available.</h1><p className="muted page-intro">Organization management is available to the root operator in SaaS mode.</p></section></main>;
-  return <main><section className="hero"><div className="eyebrow">Organizations</div><h1>Manage your workspaces.</h1><p className="muted page-intro">Every organization is an isolated tenant with its own nodes, incidents, and enrollment token.</p></section><section className="g-card"><OrganizationsConsole/></section></main>;
+  if(process.env.SMARTDETECTOR_DEPLOYMENT_MODE!=='saas'||session?.role!=='root')return <main><section className="hero"><div className="eyebrow">Locations</div><h1>Not available.</h1><p className="muted page-intro">Location management is available to the root operator in SaaS mode.</p></section></main>;
+  return <main><section className="hero"><div className="eyebrow">Locations</div><h1>Manage your locations.</h1><p className="muted page-intro">Each location has its own devices, events, integrations, and access controls.</p></section><section className="card g-card"><OrganizationsConsole/></section></main>;
 }
 

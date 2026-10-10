@@ -1,0 +1,9 @@
+{
+  "license": "https://www.pexels.com/license/",
+  "note": "Third-party demonstration media, not Ring footage or customer data. Media remains under the Pexels license, not the application's AGPL license. No endorsement is implied.",
+  "assets": [
+    {"files": ["package-delivery.mp4", "package-delivery.jpg"], "creator": "Pavel Danilyuk", "source": "https://www.pexels.com/video/delivery-man-in-a-house-6405949/"},
+    {"files": ["dogs-in-yard.mp4", "dogs-in-yard.jpg"], "creator": "ROMAN ODINTSOV", "source": "https://www.pexels.com/video/dog-running-on-the-grass-8746767/"},
+    {"files": ["door-visitor.mp4", "door-visitor.jpg"], "creator": "MART PRODUCTION", "source": "https://www.pexels.com/video/man-ringing-the-doorbell-and-looks-at-the-peephole-7701946/"}
+  ]
+}

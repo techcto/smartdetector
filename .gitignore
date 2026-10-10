@@ -8,6 +8,7 @@
 # Next.js / Node
 /node_modules/
 /.next/
+/.next-releases/
 /out/
 /.turbo/
 *.tsbuildinfo

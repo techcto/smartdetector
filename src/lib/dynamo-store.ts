@@ -3,6 +3,7 @@ import{DynamoDBClient,CreateTableCommand,UpdateTimeToLiveCommand}from'@aws-sdk/c
 import{DynamoDBDocumentClient,GetCommand,PutCommand,QueryCommand,DeleteCommand}from'@aws-sdk/lib-dynamodb';
 import type{SmartDetectorEvent,SmartDetectorUser,IncidentRecord,Node,OrgMembership,Organization,OrgType,Product,Settings,Subscription}from'./model';
 import{defaultSettings}from'./model';
+import{markHistoryPurge,deleteStoredHistory,writeHistory}from'./history-privacy';
 
 const tableName=process.env.SMARTDETECTOR_TABLE??'smartdetector-local';
 const client=DynamoDBDocumentClient.from(new DynamoDBClient({endpoint:process.env.SMARTDETECTOR_DYNAMODB_ENDPOINT}),{marshallOptions:{removeUndefinedValues:true}});
@@ -29,6 +30,7 @@ function slugify(name:string){return name.toLowerCase().replace(/[^a-z0-9]+/g,'-
 const SINGLETON_PK='SINGLETON',SINGLETON_SK='SINGLETON';
 
 export const dynamoStore={
+  async purgeHistory(orgId:string){await ensureTable();const cutoff=await markHistoryPurge(orgId),nodes=await this.nodes(orgId);const deleted=await deleteStoredHistory(orgId,nodes.map(n=>n.serverId),cutoff);return{deleted,cutoff}},
   async createOrganization(v:{name:string;ownerId:string;orgType:OrgType;contactEmail?:string;contactPhone?:string}):Promise<Organization>{
     await ensureTable();
     const org:Organization={id:randomUUID(),name:v.name,slug:`${slugify(v.name)}-${randomUUID().slice(0,6)}`,ownerId:v.ownerId,orgType:v.orgType,contactEmail:v.contactEmail,contactPhone:v.contactPhone,enrollmentToken:randomUUID(),createdAt:new Date().toISOString()};
@@ -99,7 +101,7 @@ export const dynamoStore={
   },
   async putIncident(v:IncidentRecord){
     await ensureTable();
-    await client.send(new PutCommand({TableName:tableName,Item:{pk:`ORG#${v.tenantId}`,sk:`INCIDENT#${v.incidentId}`,...v}}));
+    await writeHistory(v.tenantId,v.startedAt,{pk:`ORG#${v.tenantId}`,sk:`INCIDENT#${v.incidentId}`,...v});
   },
   async incident(tenant:string,incidentId:string):Promise<IncidentRecord|null>{
     await ensureTable();
@@ -119,7 +121,7 @@ export const dynamoStore={
   async putEvent(v:SmartDetectorEvent){
     await ensureTable();
     const ttl=Math.floor(Date.now()/1000)+7*24*60*60;
-    await client.send(new PutCommand({TableName:tableName,Item:{pk:`ORG#${v.tenantId}#NODE#${v.serverId}`,sk:`EVENT#${v.at}#${randomUUID()}`,ttl,...v}}));
+    await writeHistory(v.tenantId,v.at,{pk:`ORG#${v.tenantId}#NODE#${v.serverId}`,sk:`EVENT#${v.at}#${randomUUID()}`,ttl,...v});
   },
   async eventsForNode(tenant:string,serverId:string,limit=200):Promise<SmartDetectorEvent[]>{
     await ensureTable();

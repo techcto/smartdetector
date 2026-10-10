@@ -1,10 +1,12 @@
 'use client';
 import Link from 'next/link';
 import {useEffect, useRef, useState} from 'react';
+import {usePathname} from 'next/navigation';
 
 type OrgSummary={id:string;name:string;orgType:'personal'|'business';role:string};
 
 export default function OrgPicker({activeOrgId,activeOrgName,isRoot}:{activeOrgId:string;activeOrgName:string;isRoot:boolean}){
+  const pathname=usePathname();
   const [open,setOpen]=useState(false);
   const [orgs,setOrgs]=useState<OrgSummary[]|null>(null);
   const [busy,setBusy]=useState(false);
@@ -20,19 +22,20 @@ export default function OrgPicker({activeOrgId,activeOrgName,isRoot}:{activeOrgI
     setBusy(true);
     const r=await fetch('/api/orgs/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({orgId})});
     setBusy(false);
-    if(r.ok)window.location.assign('/');
+    if(r.ok)window.location.assign('/console');
   }
+  if(pathname==='/admin'||pathname.startsWith('/admin/'))return <span className="console-private-label">System administration</span>;
   return <div className="org-picker position-relative" ref={ref}>
     <button className="org-picker-button" type="button" onClick={()=>{setOpen(o=>!o);if(!orgs)load()}} aria-haspopup="menu" aria-expanded={open}>
-      {activeOrgName}<span className="muted small">workspace ▾</span>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m3 10 9-7 9 7v11h-7v-7h-4v7H3Z"/></svg><span className="org-picker-label">{activeOrgName}<small>Location ▾</small></span>
     </button>
     {open&&<div className="org-picker-popover" role="menu">
       {orgs===null&&<p className="muted small">Loading…</p>}
-      {orgs?.length===0&&<p className="muted small">No organizations yet.</p>}
+      {orgs?.length===0&&<p className="muted small">No locations yet.</p>}
       {orgs?.map(o=><button key={o.id} type="button" className={`org-picker-item${o.id===activeOrgId?' active':''}`} role="menuitem" disabled={busy} onClick={()=>switchTo(o.id)}>
         <span>{o.name}</span><span className="muted small">{o.orgType}</span>
       </button>)}
-      {isRoot&&<Link className="org-picker-item" href="/settings?tab=Organizations" role="menuitem" onClick={()=>setOpen(false)}>+ Add organization</Link>}
+      {isRoot&&<Link className="org-picker-item" href="/locations" role="menuitem" onClick={()=>setOpen(false)}>+ Add location</Link>}
     </div>}
   </div>;
 }

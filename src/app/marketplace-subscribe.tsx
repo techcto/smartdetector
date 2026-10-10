@@ -3,6 +3,6 @@ export default function MarketplaceSubscribe(){
  if(!value)return null;
  let url:URL;try{url=new URL(value)}catch{return null}
  if(url.protocol!=='https:'||url.hostname!=='aws.amazon.com'||!url.pathname.startsWith('/marketplace/'))return null;
- return <a href={url.href} target="_blank" rel="noopener noreferrer" className="button primary" aria-label="Subscribe to SmartDetector on AWS Marketplace">Subscribe on AWS Marketplace</a>;
+ return <a href={url.href} target="_blank" rel="noopener noreferrer" className="btn button primary btn-primary" aria-label="Subscribe to SmartDetector on AWS Marketplace">Subscribe on AWS Marketplace</a>;
 }
 

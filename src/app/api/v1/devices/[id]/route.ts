@@ -7,5 +7,5 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   const { id } = await context.params;
   if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id)) return NextResponse.json({ error: 'Invalid device ID' }, { status: 400 });
   const v = await store.node(identity.orgId, id);
-  return v ? NextResponse.json({ serverId: v.serverId, displayName: v.displayName, platform: v.platform, tags: v.tags, status: v.status, createdAt: v.createdAt, lastHeartbeat: v.lastHeartbeat }, { headers: { 'cache-control': 'no-store' } }) : NextResponse.json({ error: 'not found' }, { status: 404 });
+  return v ? NextResponse.json({ serverId: v.serverId, displayName: v.displayName, platform: v.platform, providerKey:v.providerKey,connectionId:v.connectionId,modelId:v.modelId, tags: v.tags, status: v.status, createdAt: v.createdAt, lastHeartbeat: v.lastHeartbeat }, { headers: { 'cache-control': 'no-store' } }) : NextResponse.json({ error: 'not found' }, { status: 404 });
 }
