@@ -1,9 +1,10 @@
 import{randomUUID}from'node:crypto';
 import{DynamoDBClient,CreateTableCommand,UpdateTimeToLiveCommand}from'@aws-sdk/client-dynamodb';
-import{DynamoDBDocumentClient,GetCommand,PutCommand,QueryCommand,DeleteCommand}from'@aws-sdk/lib-dynamodb';
+import{DynamoDBDocumentClient,GetCommand,PutCommand,QueryCommand,DeleteCommand,TransactWriteCommand}from'@aws-sdk/lib-dynamodb';
 import type{SmartDetectorEvent,SmartDetectorUser,IncidentRecord,Node,OrgMembership,Organization,OrgType,Product,Settings,Subscription}from'./model';
 import{defaultSettings}from'./model';
 import{markHistoryPurge,deleteStoredHistory,writeHistory}from'./history-privacy';
+import {markDeviceRemoved,deleteDeviceHistory,devicePrivacyKey} from './device-privacy';
 
 const tableName=process.env.SMARTDETECTOR_TABLE??'smartdetector-local';
 const client=DynamoDBDocumentClient.from(new DynamoDBClient({endpoint:process.env.SMARTDETECTOR_DYNAMODB_ENDPOINT}),{marshallOptions:{removeUndefinedValues:true}});
@@ -30,7 +31,8 @@ function slugify(name:string){return name.toLowerCase().replace(/[^a-z0-9]+/g,'-
 const SINGLETON_PK='SINGLETON',SINGLETON_SK='SINGLETON';
 
 export const dynamoStore={
-  async purgeHistory(orgId:string){await ensureTable();const cutoff=await markHistoryPurge(orgId),nodes=await this.nodes(orgId);const deleted=await deleteStoredHistory(orgId,nodes.map(n=>n.serverId),cutoff);return{deleted,cutoff}},
+  async removeDevice(orgId:string,id:string){await ensureTable();await markDeviceRemoved(orgId,id);const deleted=await deleteDeviceHistory(orgId,id);await client.send(new DeleteCommand({TableName:tableName,Key:{pk:'ORG#'+orgId,sk:'NODE#'+id}}));await (await import('./people')).prunePersonActivity(orgId);return {deleted}},
+  async purgeHistory(orgId:string){await ensureTable();const cutoff=await markHistoryPurge(orgId),nodes=await this.nodes(orgId);const deleted=await deleteStoredHistory(orgId,nodes.map(n=>n.serverId),cutoff);await (await import('./people')).prunePersonActivity(orgId);return{deleted,cutoff}},
   async createOrganization(v:{name:string;ownerId:string;orgType:OrgType;contactEmail?:string;contactPhone?:string}):Promise<Organization>{
     await ensureTable();
     const org:Organization={id:randomUUID(),name:v.name,slug:`${slugify(v.name)}-${randomUUID().slice(0,6)}`,ownerId:v.ownerId,orgType:v.orgType,contactEmail:v.contactEmail,contactPhone:v.contactPhone,enrollmentToken:randomUUID(),createdAt:new Date().toISOString()};
@@ -87,7 +89,7 @@ export const dynamoStore={
   },
   async upsertNode(v:Node){
     await ensureTable();
-    await client.send(new PutCommand({TableName:tableName,Item:{pk:`ORG#${v.tenantId}`,sk:`NODE#${v.serverId}`,...v}}));
+    await client.send(new TransactWriteCommand({TransactItems:[{ConditionCheck:{TableName:tableName,Key:devicePrivacyKey(v.tenantId,v.serverId),ConditionExpression:'attribute_not_exists(#removed) OR #removed=:false',ExpressionAttributeNames:{'#removed':'removed'},ExpressionAttributeValues:{':false':false}}},{Put:{TableName:tableName,Item:{pk:`ORG#${v.tenantId}`,sk:`NODE#${v.serverId}`,...v}}}]}));
   },
   async nodes(tenant:string):Promise<Node[]>{
     await ensureTable();
@@ -112,6 +114,11 @@ export const dynamoStore={
     await ensureTable();
     const r=await client.send(new QueryCommand({TableName:tableName,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',ExpressionAttributeValues:{':pk':`ORG#${tenant}`,':prefix':'INCIDENT#'}}));
     return (r.Items??[]) as IncidentRecord[];
+  },
+  async searchableIncidents(tenant:string){
+    await ensureTable();const rows:IncidentRecord[]=[];let cursor:Record<string,unknown>|undefined,pages=0;
+    do{const page=await client.send(new QueryCommand({TableName:tableName,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',ExpressionAttributeValues:{':pk':`ORG#${tenant}`,':prefix':'INCIDENT#'},ConsistentRead:true,ExclusiveStartKey:cursor,Limit:1000-rows.length}));rows.push(...(page.Items??[]) as IncidentRecord[]);cursor=page.LastEvaluatedKey;pages++;}while(cursor&&rows.length<1000&&pages<20);
+    return {rows,truncated:!!cursor};
   },
   async incidentsForNode(tenant:string,serverId:string):Promise<IncidentRecord[]>{
     await ensureTable();

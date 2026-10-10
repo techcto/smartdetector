@@ -1,5 +1,6 @@
 import {DynamoDBClient} from '@aws-sdk/client-dynamodb';
 import {DynamoDBDocumentClient,GetCommand,PutCommand,QueryCommand,DeleteCommand,TransactWriteCommand} from '@aws-sdk/lib-dynamodb';
+import {devicePrivacyKey} from './device-privacy';
 const table=process.env.SMARTDETECTOR_TABLE;
 const db=DynamoDBDocumentClient.from(new DynamoDBClient({endpoint:process.env.SMARTDETECTOR_DYNAMODB_ENDPOINT}),{marshallOptions:{removeUndefinedValues:true}});
 const cutoffs=new Map<string,number>();
@@ -8,7 +9,7 @@ export const memoryHistoryCutoff=(org:string)=>cutoffs.get(org)??0;
 export async function historyCutoff(org:string){if(!table)return memoryHistoryCutoff(org);return Number((await db.send(new GetCommand({TableName:table,Key:key(org),ConsistentRead:true}))).Item?.cutoff??0)}
 export async function writeHistory(org:string,at:string,item:Record<string,unknown>){
  const time=Date.parse(at);if(!Number.isFinite(time))throw Error('Invalid history timestamp');
- await db.send(new TransactWriteCommand({TransactItems:[{ConditionCheck:{TableName:table!,Key:key(org),ConditionExpression:'attribute_not_exists(#cutoff) OR #cutoff < :time',ExpressionAttributeNames:{'#cutoff':'cutoff'},ExpressionAttributeValues:{':time':time}}},{Put:{TableName:table!,Item:item}}]}));
+ await db.send(new TransactWriteCommand({TransactItems:[{ConditionCheck:{TableName:table!,Key:key(org),ConditionExpression:'attribute_not_exists(#cutoff) OR #cutoff < :time',ExpressionAttributeNames:{'#cutoff':'cutoff'},ExpressionAttributeValues:{':time':time}}},...(typeof item.serverId==='string'?[{ConditionCheck:{TableName:table!,Key:devicePrivacyKey(org,item.serverId),ConditionExpression:'(attribute_not_exists(#removed) OR #removed=:false) AND (attribute_not_exists(#cutoff) OR #cutoff<:time)',ExpressionAttributeNames:{'#removed':'removed','#cutoff':'cutoff'},ExpressionAttributeValues:{':false':false,':time':time}}}]:[]),{Put:{TableName:table!,Item:item}}]}));
 }
 export async function markHistoryPurge(org:string){const cutoff=Date.now();if(table){try{await db.send(new PutCommand({TableName:table,Item:{...key(org),cutoff},ConditionExpression:'attribute_not_exists(#c) OR #c < :c',ExpressionAttributeNames:{'#c':'cutoff'},ExpressionAttributeValues:{':c':cutoff}}))}catch(e){if(!(e instanceof Error&&e.name==='ConditionalCheckFailedException'))throw e;return historyCutoff(org)}}else cutoffs.set(org,Math.max(cutoff,memoryHistoryCutoff(org)));return cutoff}
 export async function deleteStoredHistory(org:string,nodeIds:string[],cutoff:number){

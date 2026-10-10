@@ -5,16 +5,20 @@ import {SQSClient, SendMessageCommand, CreateQueueCommand} from "@aws-sdk/client
 import {store} from "./store";
 import type {RingEvent} from "./ring";
 import {historyCutoff} from './history-privacy';
+import {devicePrivacy} from './device-privacy';
+const cameraId=(id:string)=>'ring-'+createHash('sha256').update(id).digest('hex').slice(0,24);
 type Job = {orgId: string; connectionId: string; event: RingEvent; id: string; done: boolean; lease: number; ttl: number};
 const table = process.env.SMARTDETECTOR_TABLE;
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({endpoint: process.env.SMARTDETECTOR_DYNAMODB_ENDPOINT}));
 const memory = new Map<string, Job>();
+export function deleteMemoryDeviceJobs(orgId:string,deviceId:string){let deleted=0;for(const [key,job] of memory){if(job.orgId===orgId&&cameraId(job.event.deviceId)===deviceId){memory.delete(key);deleted++}}return deleted;}
 const key = (orgId: string, id: string) => ({pk: "ORG#" + orgId, sk: "RINGJOB#" + id});
 export function ringJobId(connectionId: string, requestId: string) {return createHash("sha256").update(connectionId + ":" + requestId).digest("hex");}
 export async function queueRingEvent(orgId: string, connectionId: string, event: RingEvent) {
   if (!await store.organizationById(orgId)) throw new Error("Unknown organization");
   const id = ringJobId(connectionId, event.requestId), job: Job = {orgId, connectionId, event, id, done: false, lease: 0, ttl: Math.floor(Date.now()/1000) + 604800};
   if(event.timestamp<=await historyCutoff(orgId))return id;
+  const privacy=await devicePrivacy(orgId,cameraId(event.deviceId));if(privacy&&(privacy.removed||event.timestamp<=privacy.cutoff))return id;
   if (table) {try {await db.send(new PutCommand({TableName: table, Item: {...key(orgId,id), ...job}, ConditionExpression: "attribute_not_exists(pk)"}));} catch (e) {if (!(e instanceof Error && e.name === "ConditionalCheckFailedException")) throw e;}}
   else if (!memory.has(orgId + id)) memory.set(orgId + id, job);
   const queue = process.env.SMARTDETECTOR_QUEUE_URL; if (!queue) throw new Error("Ring queue is not configured");
@@ -26,6 +30,7 @@ export async function queueRingEvent(orgId: string, connectionId: string, event:
 export async function claimRingJob(orgId: string, id: string) {
   const job = table ? (await db.send(new GetCommand({TableName: table, Key: key(orgId,id), ConsistentRead: true}))).Item as Job | undefined : memory.get(orgId + id);
   if (!job || job.ttl <= Date.now()/1000 || job.event.timestamp<=await historyCutoff(orgId)) return null;
+  const privacy=await devicePrivacy(orgId,cameraId(job.event.deviceId));if(privacy&&(privacy.removed||job.event.timestamp<=privacy.cutoff))return null;
   if (job.done) return null;
   const now = Date.now(), lease = now + 300000;
   if (table) await db.send(new UpdateCommand({TableName: table, Key: key(orgId,id), UpdateExpression: "SET lease=:lease", ConditionExpression: "done=:false AND lease<:now", ExpressionAttributeValues: {":lease": lease, ":now": now, ":false": false}}));

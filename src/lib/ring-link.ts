@@ -1,7 +1,7 @@
 import {createHash,createHmac,timingSafeEqual} from 'node:crypto';
 import {DynamoDBClient} from '@aws-sdk/client-dynamodb';
 import {DynamoDBDocumentClient,QueryCommand,PutCommand,UpdateCommand,DeleteCommand} from '@aws-sdk/lib-dynamodb';
-import {connectionCredentials,encryptSecret,decryptSecret,saveSetting,setting} from './providers';
+import {connectionCredentials,encryptSecret,decryptSecret,saveSetting,setting,listSettings,removeSetting} from './providers';
 
 type Pending={pk:string;sk:string;accountId:string;encrypted:string;ttl:number;lease:number};
 type Tokens={access_token:string;refresh_token?:string;expires_in:number;expiresAt?:number};
@@ -46,27 +46,59 @@ export async function receiveRingCode(orgId:string,connectionId:string,code:stri
  // Never return OAuth credentials to the caller/browser.
  return {accepted:true};
 }
-export async function completeRingLink(orgId:string,connectionId:string,userId:string,nonce:string,time:string,fetcher:typeof fetch=fetch){
+export async function completeRingLink(orgId:string,connectionId:string,userId:string,nonce:string,time:string,fetcher:typeof fetch=fetch,systemLink=false){
  const connection=await setting(orgId,connectionId),config=await connectionCredentials(orgId,connectionId,'ring');
  if(!connection||!config?.hmacKey)throw new Error('Ring connection not found');
- const row=(await pending(orgId,connectionId)).find(r=>validRingNonce(nonce,time,r.accountId,config.hmacKey));
+ const sourceOrg=systemLink?'SYSTEM':orgId,sourceConnection=systemLink?'APP':connectionId;
+ const row=(await pending(sourceOrg,sourceConnection)).find(r=>validRingNonce(nonce,time,r.accountId,config.hmacKey));
  if(!row)throw new Error('Link expired or could not be verified. Start again from Ring.');
  const lease=Date.now()+60000;
  if(process.env.SMARTDETECTOR_TABLE)await db.send(new UpdateCommand({TableName:process.env.SMARTDETECTOR_TABLE,Key:{pk:row.pk,sk:row.sk},UpdateExpression:'SET #lease=:lease',ConditionExpression:'#lease<:now AND #ttl>:seconds',ExpressionAttributeNames:{'#lease':'lease','#ttl':'ttl'},ExpressionAttributeValues:{':lease':lease,':now':Date.now(),':seconds':Math.floor(Date.now()/1000)}}));
  else{if(row.lease>Date.now())throw new Error('Account linking is already in progress');row.lease=lease;}
  try{
-  const tokens=JSON.parse(decryptSecret(row.encrypted,scope(orgId,connectionId,row.accountId))) as Tokens;
+  const tokens=JSON.parse(decryptSecret(row.encrypted,scope(sourceOrg,sourceConnection,row.accountId))) as Tokens;
   const headers={Authorization:'Bearer '+tokens.access_token,'Content-Type':'application/json'};
   const post=await fetcher('https://api.amazonvision.com/v1/accounts/me/app-integrations',{method:'POST',headers,body:JSON.stringify({nonce,account_identifier:'SmartDetector user '+createHash('sha256').update(userId).digest('hex').slice(0,12)}),redirect:'error',signal:AbortSignal.timeout(15000)});
   if(!post.ok)throw new Error('Ring did not accept the account link');
   const patch=await fetcher('https://api.amazonvision.com/v1/accounts/me/app-integrations',{method:'PATCH',headers,body:JSON.stringify({status:'completed'}),redirect:'error',signal:AbortSignal.timeout(15000)});
   if(!patch.ok)throw new Error('Ring did not finalize the account link');
   await saveSetting(orgId,userId,{id:connectionId,providerKey:'ring',name:connection.name,enabled:connection.enabled,isDefault:connection.isDefault,settings:{accountId:row.accountId,accessToken:tokens.access_token,refreshToken:tokens.refresh_token??'',expiresAt:String(tokens.expiresAt??Date.now()+tokens.expires_in*1000)}});
+  if(systemLink)await registerRingDestination(row.accountId,orgId,connectionId);
   await erase(row);return {linked:true};
  }catch(e){
   if(process.env.SMARTDETECTOR_TABLE)await db.send(new UpdateCommand({TableName:process.env.SMARTDETECTOR_TABLE,Key:{pk:row.pk,sk:row.sk},UpdateExpression:'SET #lease=:zero',ConditionExpression:'#lease=:lease',ExpressionAttributeNames:{'#lease':'lease'},ExpressionAttributeValues:{':zero':0,':lease':lease}}));else row.lease=0;
   throw e;
  }
+}
+const destinations=new Map<string,{orgId:string;connectionId:string}>();
+const destinationKey=(accountId:string)=>({pk:'RINGACCOUNT#'+createHash('sha256').update(accountId).digest('hex'),sk:'DESTINATION'});
+async function registerRingDestination(accountId:string,orgId:string,connectionId:string){
+ const key=destinationKey(accountId),destination={orgId,connectionId};
+ // Never silently move an account's events into another tenant/location.
+ if(process.env.SMARTDETECTOR_TABLE)await db.send(new PutCommand({TableName:process.env.SMARTDETECTOR_TABLE,Item:{...key,...destination},ConditionExpression:'attribute_not_exists(pk) OR (orgId=:org AND connectionId=:connection)',ExpressionAttributeValues:{':org':orgId,':connection':connectionId}}));
+ else{const old=destinations.get(key.pk);if(old&&(old.orgId!==orgId||old.connectionId!==connectionId))throw Error('Ring account already linked to a different location');destinations.set(key.pk,destination)}
+}
+export async function ringDestination(accountId:string){
+ const key=destinationKey(accountId);
+ if(!process.env.SMARTDETECTOR_TABLE)return destinations.get(key.pk)??null;
+ const {GetCommand}=await import('@aws-sdk/lib-dynamodb');
+ return (await db.send(new GetCommand({TableName:process.env.SMARTDETECTOR_TABLE,Key:key,ConsistentRead:true}))).Item as {orgId:string;connectionId:string}|undefined;
+}
+export async function removeRingDestination(accountId:string,orgId:string,connectionId:string){
+ const key=destinationKey(accountId);
+ if(process.env.SMARTDETECTOR_TABLE){try{await db.send(new DeleteCommand({TableName:process.env.SMARTDETECTOR_TABLE,Key:key,ConditionExpression:'orgId=:org AND connectionId=:connection',ExpressionAttributeValues:{':org':orgId,':connection':connectionId}}))}catch(e){if((e as {name?:string}).name!=='ConditionalCheckFailedException')throw e}}
+ else{const old=destinations.get(key.pk);if(old?.orgId===orgId&&old.connectionId===connectionId)destinations.delete(key.pk)}
+}
+export async function completeSystemRingLink(orgId:string,userId:string,nonce:string,time:string,fetcher:typeof fetch=fetch){
+ const config=await connectionCredentials('SYSTEM','APP','ring');
+ const row=(await pending('SYSTEM','APP')).find(r=>config?.hmacKey&&validRingNonce(nonce,time,r.accountId,config.hmacKey));
+ if(!row)throw Error('Start a fresh link from Ring');
+ const destination=await ringDestination(row.accountId);
+ if(destination&&destination.orgId!==orgId)throw Error('Ring account belongs to another location');
+ const existing=(await listSettings(orgId)).find(c=>c.providerKey==='ring'&&c.settings.accountId===row.accountId);
+ if(destination&&existing?.id!==destination.connectionId)throw Error('Disconnect the old account link before reconnecting');
+ const connection=existing??await saveSetting(orgId,userId,{providerKey:'ring',name:'Ring account',settings:{}});
+ try{await completeRingLink(orgId,connection.id,userId,nonce,time,fetcher,true);return connection.id}catch(e){if(!existing)await removeSetting(orgId,connection.id);throw e}
 }
 export async function ringAccess(orgId:string,connectionId:string,fetcher:typeof fetch=fetch){
  const config=await connectionCredentials(orgId,connectionId,'ring');if(!config?.accessToken)throw new Error('Link your Ring account first');

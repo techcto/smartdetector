@@ -5,6 +5,11 @@ import {store} from "./store";
 import {ingest} from "./signals";
 import {historyCutoff} from './history-privacy';
 import {detectionFrames} from './object-detections';
+import {assertDeviceHistory} from './device-privacy';
+import {enrolledPeople,saveMatchedActivity} from './people';
+import {measureFaces} from './face-service';
+import {recognizeEvent} from './face-matching';
+import {deliverIncident} from './event-delivery';
 
 export type VisionFrame = {image: string; at_ms: number};
 export function evidenceFrames(frames: VisionFrame[],analysis?:unknown) {
@@ -20,6 +25,7 @@ export function evidenceFrames(frames: VisionFrame[],analysis?:unknown) {
 export type VisionResult = {job_id?: string; thumbnail?: string; classification?: {status: string; summary?: string}; observations: {type: string; value: number; detected: boolean; advisory?: boolean}[]; frames?: unknown[]; engine_version?: string};
 export async function analyzeFrames(orgId: string, deviceId: string, frames: VisionFrame[], classify: boolean, source = "manual", requestId?: string, fetcher: typeof fetch = fetch,observedAt=Date.now()) {
   if(observedAt<=await historyCutoff(orgId))throw Error('History was purged');
+  await assertDeviceHistory(orgId,deviceId,new Date(observedAt).toISOString());
   if (!/^[a-zA-Z0-9_-]{1,80}$/.test(deviceId) || !Array.isArray(frames) || frames.length < 1 || frames.length > 12 || typeof classify !== "boolean") throw new Error("Invalid analysis input");
   let previous = -1;
   for (const f of frames) {
@@ -34,9 +40,17 @@ export async function analyzeFrames(orgId: string, deviceId: string, frames: Vis
   if (!Array.isArray(result.observations)) throw new Error("Invalid AutoVision result");
   const at = new Date(observedAt).toISOString();
   if(observedAt<=await historyCutoff(orgId))throw Error('History was purged');
+  await assertDeviceHistory(orgId,deviceId,at);
   for (const o of result.observations) if (["motion", "person"].includes(o.type) && Number.isFinite(o.value)) await ingest(orgId, source, {device_id: deviceId, type: o.type as "motion" | "person", value: o.value},at);
   const incidentId = createHash("sha256").update(orgId + "|" + source + "|" + (requestId || result.job_id || at)).digest("hex");
   const evidence=evidenceFrames(frames,result.frames),detections=detectionFrames(result.frames);
-  await store.putIncident({tenantId: orgId, agentId: source, serverId: deviceId, incidentId, state: "review", startedAt: at, updatedAt: at, payload: {kind: "vision-review", source, autoVisionJobId: result.job_id, thumbnail: evidence[0]?.preview, evidenceFrames:evidence, detectionFrames:detections, detectionSchemaVersion:1, observations: result.observations, classification: result.classification, engineVersion: result.engine_version, advisory: true, assessment: "Visual observation for human review; not an intruder or emergency determination."}});
+  // Optional biometric path: failures must not lose the event or mute unknown people.
+  let recognition:Awaited<ReturnType<typeof recognizeEvent>>|undefined;
+  try{if((await enrolledPeople(orgId)).length)recognition=await recognizeEvent(orgId,await measureFaces(frames,fetcher),detections);}catch{/* Face service unavailable: preserve normal event behavior. */}
+  await assertDeviceHistory(orgId,deviceId,at);
+  const personNotify=recognition?.notify!==false||result.observations.some(o=>o.detected&&!['person','motion'].includes(o.type));
+  await store.putIncident({tenantId: orgId, agentId: source, serverId: deviceId, incidentId, state: "review", startedAt: at, updatedAt: at, payload: {personNotify,kind: "vision-review", source, autoVisionJobId: result.job_id, thumbnail: evidence[0]?.preview, evidenceFrames:evidence, detectionFrames:detections, detectionSchemaVersion:1, observations: result.observations, classification: result.classification, engineVersion: result.engine_version, advisory: true, assessment: "Visual observation for human review; not an intruder or emergency determination."}});
+  if(recognition)await saveMatchedActivity(orgId,incidentId,recognition.sightings);
+  if(result.observations.some(o=>o.type==='person'&&o.detected)&&personNotify)await deliverIncident(orgId,incidentId);
   return {incidentId, analysis: result};
 }

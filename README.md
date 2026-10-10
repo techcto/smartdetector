@@ -111,6 +111,20 @@ npm run test:web
 bash git.sh audit
 ```
 
+## Installation-wide integration administration
+
+Root manages developer apps at **Account → Admin** (`/admin`); non-root API access is denied. Ring and Alexa secrets are encrypted server-side and reads return only configured flags. Empty fields retain saved values. DynamoDB makes settings available to web/API/worker processes; without it, settings are process-local development data.
+
+- **Ring:** system Client ID, Client Secret, HMAC signing key, and shared callback URLs. OAuth tokens and discovered cameras remain location-scoped. Shared signed webhooks resolve only the explicitly linked account destination and check the active connection before queuing work. Disconnect releases that routing entry. Legacy location-scoped callbacks remain available. Changing system app credentials affects Ring refresh/signature checks; keep the same Ring app when migrating existing links, or reconnect accounts after changing apps.
+- **AutoVision:** system service URL/API key; deployment variables remain a fallback. Its synthetic test can consume quota/create activity.
+- **Fire TV:** no customer secret. Optional Application ID is publishing metadata; displays use location-scoped pairing under Devices. It does not install or certify a native TV app.
+- **Bedrock:** system model/inference profile and region are consumed by incident summaries. Authentication uses the AWS SDK credential chain/ECS task role, never keys entered in this UI. Authorize the selected model and inference-profile resources using reviewed CloudFormation changes; saving a model does not grant IAM access or verify invocation. Local Compose uses dummy AWS credentials and must be given an appropriate development identity separately for real Bedrock calls.
+- **Alexa:** optional Skill ID and app metadata only, with encrypted optional OAuth secret. Skill runtime, account-linking endpoints, and certification remain unimplemented; the Admin form explicitly labels this setup-only.
+
+These code changes require a release/deployment before the new forms and shared Ring endpoints appear on production. Do not change Ring console callbacks to routes absent from the currently deployed version.
+
+Location administrators can open a device detail page and choose **Remove device**, then type `DELETE DEVICE`. This deletes that device's local saved events, inline image evidence, and queued Ring work, while preserving other devices and provider account connections. Removing a Fire TV display also revokes its access. A privacy tombstone blocks late/in-flight history writes and automatic Ring rediscovery; explicitly selecting **Connect device** restores a Ring camera for future events, without restoring deleted history. Copies already submitted to AutoVision have a separate retention/purge policy; Ring recordings and database backups are not deleted by this action.
+
 ## Developer Signup: Ring and Fire TV
 
 These are Amazon developer accounts, separate from your SmartDetector workspace and AWS account. Never commit developer credentials, device footage, or customer identifiers.
@@ -120,8 +134,8 @@ These are Amazon developer accounts, separate from your SmartDetector workspace 
 1. Visit the [Ring Developer portal](https://developer.ring.com/) and request developer registration using the [official getting-started guide](https://developer.amazon.com/docs/ring/get-started.html). Supply your contact, organization, and integration use case. Complete any verification requested by Amazon.
 2. Once access is granted, register a SmartDetector test application. The portal supplies a client ID, client secret, and webhook HMAC signing key. Keep secrets in organization-scoped provider settings, not browser code or Git.
 3. Follow the [local Ring testing guide](docs/ring-local-testing.md). SmartDetector implements Ring-initiated account linking: server-side code exchange, encrypted pending tokens, HMAC nonce verification, explicit administrator confirmation, and token refresh. An AWS access key is not a Ring token.
-4. Open **Devices → Ring → Connect provider** and save the staging Client ID, Client Secret, and HMAC key. Open the same app through an HTTPS tunnel; the connection drawer generates all four location/connection-scoped URLs to copy into Ring's staging settings. The deployment administrator configures the AutoVision system service through environment variables.
-5. Start account linking from Ring's staging/testing workflow, share a camera, sign in to SmartDetector, and confirm the connection. Choose a supported device type, discover the cameras authorized for that account, and connect one. The optional partner-initiated OAuth allowlist is not required for this implemented flow.
+4. Sign in as root and open **Account → Admin → Ring developer app**. Save the Client ID, Client Secret, and HMAC key. Open Admin through your public HTTPS origin and copy all four shared callback URLs into Ring's matching staging/production app settings. Do not copy localhost location IDs into production URLs. Existing location-specific callbacks remain supported; existing secrets are not automatically copied between deployments.
+5. Start a fresh account link from Ring's staging/testing workflow, share a camera, sign in to SmartDetector, and confirm the displayed destination location. Shared cameras sync into that location. A linked Ring account cannot silently move between locations: disconnect it from its original location before linking elsewhere. The optional partner-initiated OAuth allowlist is not required for this implemented flow.
 6. Use a consenting test device/account, or the official hackathon Playground if your developer access includes it. Verify device discovery, signed event delivery, recorded snapshots, AutoVision analysis, and the resulting organization-scoped review. Mocks alone do not validate a real Ring integration.
 
 Use the portal's actual account-linking flow; do not scrape consumer Ring credentials or share a personal password. API access and device/media permissions depend on the approved application and linked account.
@@ -238,3 +252,59 @@ Connect an MCP client to `http://localhost:8083/mcp` using the local MCP token a
 Run `npm --prefix submodules/smartdetector-agentcore ci` and `node devops/testing/mcp-smoke.mjs` against a local app on port 8082 for the end-to-end REST/MCP check. Set `SMARTDETECTOR_TEST_USER` and `SMARTDETECTOR_TEST_PASSWORD` when using non-default local credentials. The test creates and revokes a temporary integration key. Optional `SMARTDETECTOR_TEST_SEED=1` also creates an explicitly synthetic sensor event retained in the local dashboard for review; it is never used against a remote deployment.
 
 Developer issues and workarounds are recorded in the [friction log](docs/friction-log.md). An actual AWS Runtime invocation must be verified separately from local MCP tests before using it as deployment evidence.
+
+## Current product workflow
+
+| Area | Capability and boundary |
+| --- | --- |
+| Website and accounts | Public product pages/demo, SaaS signup, isolated organizations/locations, user management, profile and Settings. Private mode disables signup and plans. |
+| Devices | Integration cards → provider detail → supported device families → connected camera detail. Ring accounts/connections are location-specific; discovery imports cameras shared with this app, not arbitrary cameras on a Ring account. |
+| Event processing | Signed Ring notifications queue bounded media sampling; AutoVision supplies person/motion measurements and optional advisory object grounding. Device detail opens camera history; event detail shows sampled evidence, object boxes, timestamps and AI context. Availability depends on Ring grants/media and configured services. |
+| Fire TV Console | Short-lived device-code pairing, revocable read-only access, camera cards, camera/event browsing, evidence-frame stepping, supported camera live view, refresh, and foreground notifications. Fire TV displays are excluded from the camera feed. No background overlay across unrelated TV apps is claimed. |
+| Natural-language event search | Web History and TV accept object/camera/time queries over stored structured detections. This is validated filter extraction, not an unrestricted semantic or Bedrock search engine. |
+| People | Location-scoped cards in History, names/family labels, full detail timelines, manual event assignments, opt-in face enrollment, and separate activity/notification choices. Automatic matching requires the configured AutoVision face service. |
+| Root Admin | Global Ring developer credentials/shared callback URLs, AutoVision URL/key, Fire TV application metadata, Bedrock model/region, and Alexa setup metadata. Root-only secrets never belong in the normal customer connection flow. Alexa runtime remains unimplemented. |
+| Privacy | Purge this location's events/images/activity associations while keeping devices and people profiles; remove a device and its saved history; revoke recognition or delete a person separately. External Ring/AutoVision history and backups are separate retention domains. |
+| API, MCP and notifications | Scoped REST keys, MCP tools, separate AgentCore package/container, optional Bedrock context and configured SES incident emails. Future WhatsApp workflows are not described as a completed communication agent. |
+
+Changes described here are source capabilities, not a claim that an unreleased local revision is already running on smartdetector.com. Hardware/Appstore validation, model configuration, release and deployment evidence must accompany the submitted revision.
+
+### Search and voice input
+
+Try **History → Search your saved events**, or the equivalent field in SmartDetector Console:
+
+- “Show me every vehicle that entered the driveway today.”
+- “Show me everyone at my front door today.”
+- “Show me pets in the backyard yesterday.”
+
+Use your actual camera names. `today` and `yesterday` use the browser's IANA timezone; `last 7 days` is a rolling window. Search scans up to 1,000 retained incident records/20 DynamoDB pages and returns at most 50 matches, with explicit truncation. “Entered” means observed on that camera, not verified crossing direction. “Everyone” means person detections, not a unique identity count. Unsupported negations/complex time expressions are rejected. Missing detections do not prove absence.
+
+Select **TV keyboard / voice** to focus the input. Remote dictation works only if the Fire TV keyboard/runtime supplies it. The global Alexa button does not automatically deliver text to this web application; a custom Alexa skill is not required for keyboard dictation. **Use browser mic** offers opt-in SpeechRecognition where supported; otherwise type. Captured text is shown for review before Search. SmartDetector receives submitted text, not microphone audio; browser/OS recognition may use external servers. Actual Cube remote dictation and browser-mic availability must be checked on hardware.
+
+### Household people, consent and privacy
+
+1. In **History → People → Add person**, create a name/family label. This is a manual label, not face enrollment.
+2. Open the person's full detail page. Assign a detected-person event by its ID to build a manually confirmed timeline. An event can contain multiple people; assignment means the named person is present, not that everyone in it is that person.
+3. For a consenting household member, expand **Opt-in household face enrollment**, enter a retained event ID/frame number, select **Find faces in frame**, select the correct face and explicitly confirm consent. Enrollment replaces the person's reference and restores alerts to on. Never enroll strangers automatically.
+4. In **History → People → Preferences**, control **Recognize me**, **Save my activity**, and **Notify about me**. Family status alone never mutes an alert. Unchecking recognition deletes the reference and restores normal notifications; disabling activity deletes activity links but can retain a recognition reference for alert filtering. Manual labeling can be used without biometric consent.
+5. **Delete person** removes the profile/reference/activity links, not original camera events. **Settings → Purge data** removes retained location history/images/activity links while preserving device connections and profiles. Remove devices through their normal detail/disconnect workflow.
+
+AutoVision runs YuNet to find faces and SFace to compute numeric embeddings inside its existing vision container. SmartDetector stores references encrypted with AES-GCM and location-bound authenticated encryption; embeddings never appear in People APIs, TV feeds, events, or browser enrollment responses. Model checksum IDs must match. Unknown-person embeddings are not saved as a stranger gallery. Automatic activity links have no copied images; they resolve evidence from the original event, and purge/device deletion removes orphaned associations. Consent/preference revisions prevent late matching work from recreating links after a preference change.
+
+Matching uses cosine similarity plus separation from the second-best household candidate. Defaults are threshold `0.75`, margin `0.10`; these are conservative starting values, **not validated accuracy claims**. Override with `SMARTDETECTOR_FACE_MATCH_THRESHOLD` and `SMARTDETECTOR_FACE_MATCH_MARGIN` only after representative evaluation. Automatic personal alert suppression is disabled unless the operator explicitly sets `SMARTDETECTOR_FACE_ALERT_SUPPRESSION=validated` after calibration. It also requires every sampled frame's measured person boxes to have unambiguous, confidently matched faces. Unknown/uncertain people, missing faces, advisory-only coverage, extra hazards or service errors retain normal alerts. Temporal sampling and detector misses remain limitations; this must not replace safety systems. People timelines mark automatic matches separately from manual confirmations. Enrollment selection is bound to the exact frame/face and profile revision with a five-minute encrypted proof so an edited or stale selection cannot enroll a different face.
+
+AutoVision's updated standard vision image includes checksum-pinned YuNet/SFace weights and license notices; rebuild and deploy that image alongside the new face API before using enrollment. No separate face container or customer model upload is needed. See [AutoVision's model setup](https://github.com/techcto/autovision#faces-yunet-sface-and-smartdetector). A face-reference match is fallible recognition evidence, not verified identity/liveness. Activity opt-out does not blur someone out of saved camera images; purge footage separately. Deployments need an appropriate notice/consent process for their use, and enrolling an account does not establish someone else's consent.
+
+The initial enrollment stores one reference per person; enrolling again replaces it. With enrolled people, each analyzed event adds a separate face-measurement request and associated image-quota units/latency. Enrollment inspection and confirmation each remeasure the selected frame. No additional face request is made for event matching when this location has no enrolled references.
+
+### Developer acceptance checklist
+
+Future applications may reuse AutoVision face measurements for building security or attendance, with their own consent, galleries and decision rules. SmartDetector currently supplies a household event-review workflow, not access control or verified timekeeping.
+
+- Run `npm run test:web`, `npm run lint`, `npm run build`; test without production credentials or customer footage.
+- Create two locations; verify People, events, Ring connections, camera live view and TV tokens cannot cross locations.
+- Use permitted test clips containing people/vehicles/pets and confusing negatives. Confirm structured boxes, previews, search results and frame stepping agree.
+- Enroll a consenting tester with configured face models. Confirm the browser receives boxes only; verify known, unknown, obscured, multiple-person and model-mismatch cases. Record false matches/misses before enabling suppression.
+- Disable activity, revoke recognition, purge history and remove a device; confirm references/associations/images follow their respective choices and new events still arrive.
+- On a Fire TV Cube, verify pairing, D-pad/Back focus, camera live view, recent-event updates, typed search, keyboard dictation if available, denied browser microphone permission, and disconnect/revocation. Do not claim Cube hardware sensors or background TV notifications from desktop tests.
+- Publish versioned images using the existing tag-release workflow; review CloudFormation changes before execution. Tests remain local verification rather than a new release-workflow gate.

@@ -27,13 +27,13 @@ The tunnel exposes your local application to the internet. Before starting it, r
 ## Configure the connection
 
 1. Open SmartDetector through the tunnel's **HTTPS URL**, not localhost, and sign in. Use this same hostname throughout account linking so session cookies stay on the same origin.
-2. Choose the intended location, then **Devices → Ring → Connect provider**.
-3. Enter the staging Client ID, Client Secret, and HMAC signing key issued for your Ring developer application. Save app settings. Do not paste credentials into chat or Git.
-4. The connection drawer generates four exact URLs. Copy them into the corresponding **Staging** account-linking fields in Ring's Developer Console. URLs are scoped to this location and saved connection; do not replace their identifiers or query parameters.
+2. As root, open **Account → Admin → Ring developer app**.
+3. Enter the staging Client ID, Client Secret, and HMAC signing key issued for your Ring developer application. Save system settings. Do not paste credentials into chat or Git.
+4. Admin shows four shared callback URLs for the current HTTPS origin. Copy all four into the corresponding **Staging** account-linking fields in Ring's Developer Console. These routes are installation-wide, not bound to root's location. Old location-specific callbacks remain supported for existing links; do not merely change their hostname when moving between deployments.
 5. Start the app installation/account-linking test from Ring's developer/testing workflow. Share an eligible camera and authorize the requested permissions.
 6. Ring sends a short-lived authorization code to the token-exchange endpoint. SmartDetector exchanges it server-side and stores encrypted, unclaimed tokens for ten minutes.
 7. Ring redirects your browser to the Account Link URL with `nonce` and `time`. Sign in to SmartDetector if needed, select the matching location, and explicitly choose **Confirm Ring connection**. SmartDetector validates the HMAC nonce, confirms the account with Ring, and finalizes the integration.
-8. Return to Ring's provider page, choose a device type, select the linked connection, and **Discover authorized cameras**. Select a camera and **Connect device**.
+8. Shared cameras automatically sync into the confirmed location. Return to Ring's provider page to review them or run discovery again. A Ring account can route to only one location; disconnect the original location connection before moving it elsewhere.
 
 Device types are curated families, not imported claims of compatibility with every hardware generation. The selected type is supplied by the operator; actual device authorization is verified by Ring discovery. Snapshot access depends on Ring's permissions and service availability. Light/siren control and live-video playback are not implemented.
 
@@ -41,13 +41,13 @@ Device types are curated families, not imported claims of compatibility with eve
 
 The device initially shows **Awaiting first event**, not a fabricated healthy status. Trigger a motion or doorbell event. Ring must deliver a correctly signed webhook for the linked account. The web service enqueues the event; the worker retrieves sampled snapshots and calls the installation's AutoVision service. Review the event and thumbnail in the console.
 
-The worker, queue, and `SMARTDETECTOR_AUTOVISION_URL` / `SMARTDETECTOR_AUTOVISION_API_KEY` must be configured. No API key is required for an operator's browser session. A prerecorded public demo is not evidence that a real Ring account is connected.
+The worker and queue must be configured. Root sets the AutoVision URL and API key under **Account → Admin**; deployment environment variables are a fallback. No API key is required for an operator's browser session. A prerecorded public demo is not evidence that a real Ring account is connected.
 
 To use the hosted AutoVision service during local development, set `SMARTDETECTOR_AUTOVISION_URL=https://autovision.dev` and a dedicated service API key in your ignored `.env`, then recreate both web and worker containers. Authenticated analyses use the key's AutoVision workspace quota and retain results plus a small thumbnail according to AutoVision's retention policy. Enabling classification also sends sampled frames to Bedrock. Do not commit the key or use private camera footage without permission.
 
 ## Troubleshooting
 
-- **HTTP URLs shown:** reopen SmartDetector using the tunnel HTTPS address, then reopen Manage connection.
+- **HTTP URLs shown:** reopen SmartDetector using the tunnel HTTPS address, then open Admin.
 - **Link cannot be verified:** confirm staging credentials, selected location, and connection; restart linking from Ring within the ten-minute nonce window.
 - **No devices discovered:** confirm your camera is shared with this app and eligible for the permissions requested by Ring. Do not substitute a regular Ring username/password or unrelated Amazon access token.
 - **Events queued but no analysis:** check worker logs, AutoVision reachability, service key, and media permissions.
