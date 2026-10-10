@@ -16,10 +16,18 @@ export function evidenceFrames(frames: VisionFrame[],analysis?:unknown) {
   const measured=detectionFrames(analysis);
   let remaining=180000;
   return frames.slice(0,12).flatMap(f=>{
-    if(f.image.length>60000||f.image.length>remaining)return [];
-    const bytes=Buffer.from(f.image,'base64'),mime=bytes.subarray(0,3).equals(Buffer.from([255,216,255]))?'jpeg':bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'png':null;
-    if(!mime)return [];remaining-=f.image.length;
-    return [{at_ms:f.at_ms,preview:'data:image/'+mime+';base64,'+f.image,detections:measured.find(m=>m.at_ms===f.at_ms)?.detections??[]}];
+    if(!Number.isFinite(f.at_ms)||f.at_ms<0||f.at_ms>30000)return [];
+    const returned=Array.isArray(analysis)?analysis.find(v=>v&&v.at_ms===f.at_ms)?.preview:undefined;
+    // AutoVision returns small raster previews; original Ring images may exceed
+    // the per-frame/incident storage budget. Never retain remote image URLs.
+    for(const image of [returned,f.image]){
+      if(typeof image!=='string'||!image.length||image.length>60000||image.length>remaining||!/^[A-Za-z0-9+/]+={0,2}$/.test(image))continue;
+      const bytes=Buffer.from(image,'base64'),mime=bytes.subarray(0,3).equals(Buffer.from([255,216,255]))?'jpeg':bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'png':null;
+      if(!mime)continue;
+      remaining-=image.length;
+      return [{at_ms:f.at_ms,preview:'data:image/'+mime+';base64,'+image,detections:measured.find(m=>m.at_ms===f.at_ms)?.detections??[]}];
+    }
+    return [];
   });
 }
 export type VisionResult = {job_id?: string; thumbnail?: string; classification?: {status: string; summary?: string}; observations: {type: string; value: number; detected: boolean; advisory?: boolean}[]; frames?: unknown[]; engine_version?: string};
