@@ -312,3 +312,7 @@ Future applications may reuse AutoVision face measurements for building security
 ## Native Vega TV client
 
 The native SmartDetector Console source and release pipeline are documented in [apps/vega/README.md](apps/vega/README.md). CI tests its API logic; version tags archive source and build ARMv7 packages in an isolated, version-pinned Vega SDK Docker environment. Device validation remains separate. Web/API Marketplace releases are independent of Amazon Appstore submission.
+
+## Recorded homepage demos
+
+The homepage uses four supplied demonstration videos shared with AutoVision: a doorbell hero, then dog-at-night, backyard visitor, and package-delivery tiles. Each has a cached AutoVision analysis under `public/demo/`, with input checksums, sampled JPEGs, returned object boxes, and advisory AI summaries. View analysis opens previous/next and thumbnail navigation; videos have no native player controls. Page loads do not invoke AI or create customer events. These are public demo assets, never connected customer footage. Only the named demo assets bypass login; location-scoped customer media remains authenticated.

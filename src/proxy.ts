@@ -2,6 +2,7 @@ import {NextRequest,NextResponse} from 'next/server';
 import {sessionCookie,verifySession} from '@/lib/session';
 export async function proxy(req:NextRequest){
   const p=req.nextUrl.pathname;
+  if(/^\/demo\/(intruder|dognight|backyardintruder|package)(\.mp4|-analysis\.json|-poster\.jpg)$/.test(p))return NextResponse.next();
   // These routes authenticate signed Ring callbacks or scoped bearer credentials themselves.
   if(p==='/api/v1/events/search'||p==='/api/v1/integrations/ring/token'||p==='/api/v1/integrations/ring/webhook')return NextResponse.next();
   if(/^\/brand\/smartdetector-(wordmark|square|icon)\.svg$/.test(p))return NextResponse.next();
