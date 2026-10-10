@@ -5,6 +5,23 @@ on:
     branches: [main, master]
 permissions: {contents: read}
 jobs:
+  native-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - run: npm --prefix apps/vega/preview ci
+      - run: npm --prefix apps/vega/preview run build
+      - run: cd apps/vega/preview && npx playwright install --with-deps chromium
+      - name: Test desktop and mobile shared native UI
+        run: |
+          npm --prefix apps/vega/preview run dev > /tmp/native-preview.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8084 >/dev/null; then break; fi
+            sleep 1
+          done
+          npm --prefix apps/vega/preview run test:browser
   check:
     runs-on: ubuntu-latest
     steps:
@@ -16,6 +33,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test:web
+      - run: npm --prefix apps/vega test
       - run: npm --prefix submodules/smartdetector-agentcore ci && npm run test:agentcore
       - run: npm run build
       - run: docker compose config --quiet

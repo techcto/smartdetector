@@ -1,0 +1,6 @@
+/.generated/
+/node_modules/
+/build/
+/bundle/
+/preview/node_modules/
+/preview/dist/

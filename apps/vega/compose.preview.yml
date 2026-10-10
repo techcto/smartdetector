@@ -1,0 +1,8 @@
+services:
+  native-ui-preview:
+    build:
+      context: .
+      dockerfile: preview/Dockerfile
+    ports:
+      - "127.0.0.1:${SMARTDETECTOR_NATIVE_PREVIEW_PORT:-8090}:8084"
+    restart: unless-stopped

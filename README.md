@@ -308,3 +308,7 @@ Future applications may reuse AutoVision face measurements for building security
 - Disable activity, revoke recognition, purge history and remove a device; confirm references/associations/images follow their respective choices and new events still arrive.
 - On a Fire TV Cube, verify pairing, D-pad/Back focus, camera live view, recent-event updates, typed search, keyboard dictation if available, denied browser microphone permission, and disconnect/revocation. Do not claim Cube hardware sensors or background TV notifications from desktop tests.
 - Publish versioned images using the existing tag-release workflow; review CloudFormation changes before execution. Tests remain local verification rather than a new release-workflow gate.
+
+## Native Vega TV client
+
+The native SmartDetector Console source and release pipeline are documented in [apps/vega/README.md](apps/vega/README.md). CI tests its API logic; version tags archive source and build ARMv7 packages in an isolated, version-pinned Vega SDK Docker environment. Device validation remains separate. Web/API Marketplace releases are independent of Amazon Appstore submission.

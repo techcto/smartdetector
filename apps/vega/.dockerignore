@@ -1,0 +1,11 @@
+*
+!Dockerfile
+!telemetry.json
+!preview/
+!preview/**
+preview/node_modules
+preview/dist
+!src/
+!src/**
+!assets/
+!assets/**

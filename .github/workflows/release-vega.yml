@@ -1,0 +1,47 @@
+name: Release native Vega Console
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: Native app version without leading v
+        required: true
+permissions: {contents: read}
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 26}
+      - run: npm --prefix apps/vega test
+      - name: Archive native source and build instructions
+        run: git archive --format=tar.gz --output=smartdetector-vega-source.tar.gz HEAD apps/vega
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smartdetector-vega-source-${{ github.ref_name }}
+          path: smartdetector-vega-source.tar.gz
+          retention-days: 90
+  package:
+    needs: source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build official SDK project and test client
+        env:
+          INPUT_VERSION: ${{ inputs.release_version }}
+        run: |
+          version="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
+          SMARTDETECTOR_RELEASE_VERSION="$version" SMARTDETECTOR_VEGA_BUILD_NUMBER="$GITHUB_RUN_NUMBER" bash apps/vega/scripts/build-docker.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smartdetector-vega-armv7-${{ github.ref_name }}
+          path: |
+            apps/vega/build/armv7-release/*.vpkg
+            apps/vega/build/SHA256SUMS
+            apps/vega/build/sdk-version.txt
+            apps/vega/build/native-package-lock.json
+            apps/vega/build/security-audit.json
+          if-no-files-found: error
+          retention-days: 90
