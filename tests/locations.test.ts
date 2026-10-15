@@ -15,4 +15,5 @@ test('SaaS root can create and switch locations; private mode blocks both',async
  process.env.SMARTDETECTOR_DEPLOYMENT_MODE='on-premise';
  assert.equal((await createLocation(new NextRequest('http://localhost/api/orgs',{method:'POST',headers,body:'{}'}))).status,403);
  assert.equal((await switchLocation(new NextRequest('http://localhost/api/orgs/active',{method:'POST',headers,body:'{}'}))).status,403);
+ assert.equal((await listLocations(new NextRequest('http://localhost/api/orgs',{headers}))).status,403);
 });

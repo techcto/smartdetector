@@ -2,6 +2,8 @@ import {NextRequest,NextResponse} from 'next/server';
 import {sessionCookie,verifySession} from '@/lib/session';
 export async function proxy(req:NextRequest){
   const p=req.nextUrl.pathname;
+  // Private installs: locations, users and billing do not exist (same rule as AutoVision).
+  if(process.env.SMARTDETECTOR_DEPLOYMENT_MODE!=='saas'&&(p==='/users'||p.startsWith('/users/')||p==='/organizations'||p.startsWith('/organizations/')||p==='/locations'||p.startsWith('/locations/')||p==='/billing'||p==='/settings/billing'||p==='/api/v1/users'||p.startsWith('/api/v1/users/')||p==='/api/v1/billing/plan'))return new NextResponse('Not available in private mode',{status:404});
   if(/^\/demo\/(intruder|dognight|backyardintruder|package)(\.mp4|-analysis\.json|-poster\.jpg)$/.test(p))return NextResponse.next();
   // These routes authenticate signed Ring callbacks or scoped bearer credentials themselves.
   if(p==='/api/v1/events/search'||p==='/api/v1/integrations/ring/token'||p==='/api/v1/integrations/ring/webhook')return NextResponse.next();
