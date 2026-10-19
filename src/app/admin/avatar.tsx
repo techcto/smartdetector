@@ -1,0 +1,1 @@
+export default function Avatar({name,large}:{name:string;large?:boolean}){const initials=name.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('')||'?';return <span className={`admin-avatar${large?' admin-avatar-lg':''}`} aria-hidden="true">{initials}</span>}

@@ -13,6 +13,7 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test:web": "tsx --test tests/*.test.ts",
+    "test:e2e:admin": "node devops/testing/admin-e2e.mjs",
     "worker": "tsx src/worker/index.ts",
     "agentcore:dev": "npm --prefix submodules/smartdetector-agentcore start",
     "test:agentcore": "npm --prefix submodules/smartdetector-agentcore test"
@@ -34,6 +35,7 @@
     "stripe": "^22.6.2"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
     "@types/node": "^26.6.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
