@@ -2,8 +2,8 @@ import {randomUUID} from 'node:crypto';
 import {store} from './store';
 import {hashPassword} from './password';
 import type {MembershipRole,Node,OrgType} from './model';
-// Synthetic data for `npm run dev` (in-memory store) and the local docker stack (DynamoDB local).
-// AWS deployments never set SMARTDETECTOR_DYNAMODB_ENDPOINT, so they are never seeded.
+// Synthetic fixtures are restricted to private development with in-memory or local DynamoDB storage.
+// Production builds (including local production previews) and SaaS never seed.
 export const devFixturePassword='smartdetector-dev-fixture';
 type Fixture={name:string;orgType:OrgType;contactEmail?:string;members:[string,string,MembershipRole][];devices:[string,string|undefined,Node['status'],number][]};
 const fixtures:Fixture[]=[
@@ -12,7 +12,7 @@ const fixtures:Fixture[]=[
  {name:'Northside Warehouse',orgType:'business',contactEmail:'facilities@example.com',members:[['jordan.kim','Jordan Kim','admin'],['ava.patel','Ava Patel','viewer']],devices:[['Loading dock','ring','pending',0]]},
 ];
 function localDynamo(){try{return ['localhost','127.0.0.1','smartdetector-dynamodb'].includes(new URL(process.env.SMARTDETECTOR_DYNAMODB_ENDPOINT??'').hostname)}catch{return false}}
-export const devFixturesEnabled=()=>process.env.SMARTDETECTOR_DEPLOYMENT_MODE==='saas'&&(process.env.SMARTDETECTOR_TABLE?localDynamo():process.env.NODE_ENV==='development');
+export const devFixturesEnabled=()=>process.env.NODE_ENV==='development'&&process.env.SMARTDETECTOR_DEPLOYMENT_MODE==='on-premise'&&(!process.env.SMARTDETECTOR_TABLE||localDynamo());
 export async function seedDevFixtures(){
  const g=globalThis as typeof globalThis&{smartdetectorDevFixtures?:boolean};
  if(!devFixturesEnabled()||g.smartdetectorDevFixtures)return false;

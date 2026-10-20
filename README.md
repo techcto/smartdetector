@@ -316,3 +316,13 @@ The native SmartDetector Console source and release pipeline are documented in [
 ## Recorded homepage demos
 
 The homepage uses four supplied demonstration videos shared with AutoVision: a doorbell hero, then dog-at-night, backyard visitor, and package-delivery tiles. Each has a cached AutoVision analysis under `public/demo/`, with input checksums, sampled JPEGs, returned object boxes, and advisory AI summaries. View analysis opens previous/next and thumbnail navigation; videos have no native player controls. Page loads do not invoke AI or create customer events. These are public demo assets, never connected customer footage. Only the named demo assets bypass login; location-scoped customer media remains authenticated.
+# Hackathon testing guide
+
+See [local setup, AutoVision integration, environment variables and verification](docs/hackathon-local-testing.md).
+
+## Update a deployed version
+
+Run `bash cmd.sh cft-update VERSION --stack YOUR_EXISTING_STACK` from this repository.
+It prepares a CloudFormation change set, shows changes, asks for review/confirmation,
+executes the exact approved plan, and waits for completion. Existing parameters and
+credentials are preserved. See [update commands and offline tests](docs/cft-update.md).
