@@ -65,3 +65,16 @@ test('Playground live view uses existing media flow, caps duration and preserves
   assert.equal((await media(request({action:'stop',ticket:result.ticket}),{params:Promise.resolve({id:device.serverId})})).status,200);assert.equal(requests[1],base+'/session-1?location=synthetic-session');
  }finally{globalThis.fetch=originalFetch;for(const k of Object.keys(env))delete process.env[k];}
 });
+test('a removed Playground camera returns only on an explicit token reconnect, without its deleted history',async()=>{
+ process.env.SMARTDETECTOR_SESSION_SECRET='synthetic-playground-restore-secret-long-enough';Object.assign(process.env,env);
+ try{
+  const org=await store.createOrganization({name:'Playground restore',ownerId:'root',orgType:'personal'});
+  const saved=await savePlaygroundToken(org.id,token(Math.floor(Date.now()/1000)+1800),fakeRing);await syncRingCameras(org.id,saved.id,fakeRing);
+  const [device]=await store.nodes(org.id),at=new Date().toISOString();
+  await store.putIncident({tenantId:org.id,serverId:device.serverId,agentId:'test',incidentId:'before-removal',state:'review',startedAt:at,updatedAt:at,payload:{}});
+  await store.removeDevice(org.id,device.serverId);assert.equal((await store.nodes(org.id)).length,1);
+  assert.equal(await syncRingCameras(org.id,saved.id,fakeRing),1);assert.ok(!(await store.nodes(org.id)).some(d=>d.serverId===device.serverId));// Background syncs keep it removed.
+  assert.equal(await syncRingCameras(org.id,saved.id,fakeRing,true),2);assert.ok(await store.node(org.id,device.serverId));
+  assert.equal(await store.incident(org.id,'before-removal'),null);
+ }finally{for(const k of Object.keys(env))delete process.env[k];}
+});

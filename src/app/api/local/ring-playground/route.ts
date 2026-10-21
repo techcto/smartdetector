@@ -23,7 +23,7 @@ export async function POST(req:NextRequest){
  try{
   const value=JSON.parse(await readBody(req,17000));if(typeof value.token!=='string')throw Error();
   const saved=await savePlaygroundToken(session.orgId,value.token.trim());id=saved.id;
-  const count=await syncRingCameras(session.orgId,id);await store.expirePlayground(session.orgId);
+  const count=await syncRingCameras(session.orgId,id,fetch,true);await store.expirePlayground(session.orgId);
   return NextResponse.json({connected:true,cameras:count,expiresAt:saved.expiresAt},{headers:{'Cache-Control':'no-store'}});
  }catch{if(id)await removePlaygroundToken(session.orgId,id);return NextResponse.json({error:'Unable to connect. Generate a fresh Playground token and confirm Device List works in Ring. No token is returned or logged.'},{status:400});}
 }
