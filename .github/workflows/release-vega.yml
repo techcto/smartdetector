@@ -15,6 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: 26}
+      - run: npm --prefix apps/vega ci
       - run: npm --prefix apps/vega test
       - name: Archive native source and build instructions
         run: git archive --format=tar.gz --output=smartdetector-vega-source.tar.gz HEAD apps/vega
