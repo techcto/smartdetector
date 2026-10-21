@@ -31,3 +31,19 @@ test('only one concurrent approval can succeed',async()=>{
   const results=await Promise.allSettled([approveTvPairing(pair.userCode,'synthetic-a','test'),approveTvPairing(pair.userCode,'synthetic-b','test')]);
   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
 });
+test('a TV that stops polling its feed shows offline instead of staying healthy forever',async()=>{
+ process.env.SMARTDETECTOR_SESSION_SECRET??='synthetic-tv-status-session-secret-long-enough';
+ const {issueTvAccess}=await import('../src/lib/tv');const {GET:feed}=await import('../src/app/api/v1/tv/feed/route');const {NextRequest}=await import('next/server');const {displayStatus}=await import('../src/lib/store');
+ const org=await store.createOrganization({name:'TV status',ownerId:'root',orgType:'personal'}),tv=await issueTvAccess(org.id,'root','Living room TV'),id='firetv-'+tv.connectionId;
+ assert.equal((await store.node(org.id,id))!.status,'pending');// Paired but never polled.
+ await feed(new NextRequest('http://localhost/api/v1/tv/feed',{headers:{authorization:'Bearer '+tv.token}}));
+ assert.equal((await store.node(org.id,id))!.status,'healthy');
+ const row=(await store.node(org.id,id))!,old=new Date(Date.now()-181000).toISOString();
+ await store.upsertNode({...row,lastHeartbeat:old});
+ assert.equal((await store.node(org.id,id))!.status,'offline');assert.equal((await store.nodes(org.id)).find(n=>n.serverId===id)!.status,'offline');
+ await feed(new NextRequest('http://localhost/api/v1/tv/feed',{headers:{authorization:'Bearer '+tv.token}}));
+ assert.equal((await store.node(org.id,id))!.status,'healthy');// Polling again recovers.
+ const camera={tenantId:org.id,serverId:'ring-camera',agentId:'ring',displayName:'Door',providerKey:'ring',tags:[],status:'healthy' as const,createdAt:old,lastHeartbeat:old};
+ assert.equal(displayStatus(camera,180).status,'healthy');// Cameras do not heartbeat; only displays age out.
+ assert.equal(displayStatus({...camera,providerKey:'firetv',lastHeartbeat:'not a date'},180).status,'offline');
+});

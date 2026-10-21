@@ -9,7 +9,6 @@ import {
   AppState,
   BackHandler,
   Image,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,11 +22,14 @@ import {
   createClient,
   displayDevices,
   eventsForDevice,
+  externalLink,
   newAlert,
   safePreview,
+  type ExternalPage,
 } from "./client.mjs";
 import { SERVICE_ORIGIN } from "./config";
 import { browserVoiceAvailable, startBrowserVoice } from "./voice";
+import { focusView } from "./focus";
 import { brandMark } from "./brand";
 import Pairing from "./PairingScreen";
 type Box = {
@@ -64,6 +66,8 @@ function Action({
   navigation = false,
   selected = false,
   label,
+  focusRef,
+  onLayout,
 }: {
   children: React.ReactNode;
   onPress: () => void;
@@ -73,10 +77,14 @@ function Action({
   navigation?: boolean;
   selected?: boolean;
   label?: string;
+  focusRef?: React.Ref<View>;
+  onLayout?: () => void;
 }) {
   const [focused, setFocused] = useState(false);
   return (
     <Pressable
+      ref={focusRef}
+      onLayout={onLayout}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{
@@ -219,7 +227,8 @@ function Evidence({
   );
 }
 export function App() {
-  const searchInput = useRef<TextInput>(null);
+  const searchInput = useRef<TextInput>(null),
+    scroller = useRef<ScrollView>(null);
   const stopVoice = useRef<(() => void) | null>(null);
   const [voiceNote, setVoiceNote] = useState("");
   useEffect(() => {
@@ -267,7 +276,8 @@ export function App() {
     [notice, setNotice] = useState<Event | null>(null),
     [alerts, setAlerts] = useState(true),
     [settingsOpen, setSettingsOpen] = useState(false),
-    [disconnectPrompt, setDisconnectPrompt] = useState(false);
+    [disconnectPrompt, setDisconnectPrompt] = useState(false),
+    [link, setLink] = useState<ReturnType<typeof externalLink> | null>(null);
   useEffect(() => {
     bodyScroll.current?.scrollTo({ y: 0, animated: false });
   }, [
@@ -284,6 +294,35 @@ export function App() {
     active = useRef(AppState.currentState === "active"),
     allowAlerts = useRef(alerts);
   allowAlerts.current = alerts;
+  // Vega keeps no focus when the focused control unmounts with its screen, so each
+  // screen change names the control to focus. FocusManager moves it once that control's
+  // native view exists: immediately if it is already laid out, otherwise on its layout.
+  const focusNext = useRef<React.RefObject<View | null> | null>(null),
+    returnTo = useRef<React.RefObject<View | null> | null>(null),
+    linkBack = useRef<View>(null),
+    settingsBack = useRef<View>(null),
+    settingsButton = useRef<View>(null),
+    pairingButton = useRef<View>(null),
+    liveButton = useRef<View>(null),
+    devicesButton = useRef<View>(null),
+    ringButton = useRef<View>(null),
+    laidOut = useRef(new WeakSet<View>());
+  useEffect(() => {
+    const target = focusNext.current?.current;
+    if (!target || !laidOut.current.has(target)) return;
+    focusNext.current = null;
+    focusView(target);
+  });
+  function land(ref: React.RefObject<View | null>) {
+    return () => {
+      const view = ref.current;
+      if (!view) return;
+      laidOut.current.add(view);
+      if (focusNext.current !== ref) return;
+      focusNext.current = null;
+      focusView(view);
+    };
+  }
   function controller() {
     const c = new AbortController();
     controllers.current.add(c);
@@ -308,6 +347,7 @@ export function App() {
     setNotice(null);
     setSettingsOpen(false);
     setDisconnectPrompt(false);
+    setLink(null);
     setBusy(false);
     seen.current = null;
   }, []);
@@ -326,11 +366,18 @@ export function App() {
     };
   }, []);
   const back = useCallback(() => {
+    if (link) {
+      focusNext.current = returnTo.current;
+      returnTo.current = null;
+      setLink(null);
+      return true;
+    }
     if (disconnectPrompt) {
       setDisconnectPrompt(false);
       return true;
     }
     if (settingsOpen) {
+      focusNext.current = settingsButton;
       setSettingsOpen(false);
       return true;
     }
@@ -354,14 +401,7 @@ export function App() {
       return true;
     }
     return false;
-  }, [
-    selectedId,
-    deviceId,
-    submitted,
-    disconnectPrompt,
-    settingsOpen,
-    section,
-  ]);
+  }, [link, section, selectedId, deviceId, submitted, disconnectPrompt, settingsOpen]);
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", back);
     return () => sub.remove();
@@ -526,6 +566,13 @@ export function App() {
       deviceId
     ),
     selected = events.find((i) => i.id === selectedId);
+  // Vega cannot open a browser; show the address so it can be opened on a phone or computer.
+  function show(page: ExternalPage, from: React.RefObject<View | null>, id?: string) {
+    returnTo.current = settingsOpen ? settingsBack : from;
+    focusNext.current = linkBack;
+    setLink(externalLink(SERVICE_ORIGIN, page, id));
+    bodyScroll.current?.scrollTo({ y: 0, animated: false });
+  }
   function open(event: Event) {
     setSelectedId(event.id);
     setFrame(0);
@@ -568,6 +615,7 @@ export function App() {
                 setQuery("");
                 setSettingsOpen(false);
                 setDisconnectPrompt(false);
+                setLink(null);
               }}
             >
               Devices
@@ -603,9 +651,10 @@ export function App() {
             </Action>
             <Action
               navigation
+              focusRef={settingsButton} onLayout={land(settingsButton)}
               label="Console settings"
               selected={settingsOpen}
-              onPress={() => setSettingsOpen(true)}
+              onPress={() => { focusNext.current = settingsBack; setLink(null); setSettingsOpen(true); }}
             >
               Settings
             </Action>
@@ -631,7 +680,17 @@ export function App() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        {!token ? (
+        {link ? (
+          <View style={s.panel}>
+            <Text style={s.heading}>{link.title}</Text>
+            <Text style={s.paragraph}>
+              This TV can't open web pages. On your phone or computer, go to:
+            </Text>
+            <Text selectable style={[s.url, mobile && { fontSize: 22 }]}>{link.url}</Text>
+            <Text style={s.paragraph}>{link.detail}</Text>
+            <Action preferred focusRef={linkBack} onLayout={land(linkBack)} onPress={() => void back()}>← Back</Action>
+          </View>
+        ) : !token ? (
           <View style={{ gap: 12 }}>
             {pair ? (
               <Pairing
@@ -698,34 +757,18 @@ export function App() {
               </Action>
             </View>
             <View style={s.actions}>
-              <Action
-                onPress={() =>
-                  void Linking.openURL(`${SERVICE_ORIGIN}/privacy`)
-                }
-              >
+              <Action onPress={() => show("privacy", settingsBack)}>
                 Privacy policy
               </Action>
-              <Action
-                onPress={() =>
-                  void Linking.openURL(
-                    `${SERVICE_ORIGIN}/privacy#data-deletion`
-                  )
-                }
-              >
+              <Action onPress={() => show("dataDeletion", settingsBack)}>
                 Delete saved data
               </Action>
-              <Action
-                onPress={() =>
-                  void Linking.openURL(
-                    `${SERVICE_ORIGIN}/privacy#account-deletion`
-                  )
-                }
-              >
+              <Action onPress={() => show("accountDeletion", settingsBack)}>
                 Request account deletion
               </Action>
             </View>
             <View style={s.actions}>
-              <Action preferred onPress={() => setSettingsOpen(false)}>
+              <Action preferred focusRef={settingsBack} onLayout={land(settingsBack)} onPress={() => void back()}>
                 Back to console
               </Action>
 
@@ -867,15 +910,7 @@ export function App() {
                           </Action>
                         )}
                         {device.liveView && (
-                          <Action
-                            onPress={() =>
-                              void Linking.openURL(
-                                SERVICE_ORIGIN +
-                                  "/devices/" +
-                                  encodeURIComponent(device.id)
-                              )
-                            }
-                          >
+                          <Action focusRef={liveButton} onLayout={land(liveButton)} onPress={() => show("liveView", liveButton, device.id)}>
                             Live view in web console
                           </Action>
                         )}
@@ -943,11 +978,7 @@ export function App() {
                           location, and connect your Ring account to discover
                           shared cameras.
                         </Text>
-                        <Action
-                          onPress={() =>
-                            void Linking.openURL(`${SERVICE_ORIGIN}/devices`)
-                          }
-                        >
+                        <Action focusRef={devicesButton} onLayout={land(devicesButton)} onPress={() => show("devices", devicesButton)}>
                           Add device
                         </Action>
                       </View>
@@ -1238,6 +1269,12 @@ const s = StyleSheet.create({
   buttonText: { fontSize: 15, color: "#005e99", fontWeight: "600" },
   focus: { borderColor: "#007bb9", backgroundColor: "#d9edff" },
   disabled: { opacity: 0.45 },
+  url: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: "#007bb9",
+    marginVertical: 18,
+  },
   code: {
     fontSize: 60,
     fontWeight: "700",
