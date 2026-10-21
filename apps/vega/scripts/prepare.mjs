@@ -8,18 +8,16 @@ import {
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { serviceOrigin } from "../src/client.mjs";
+import { serviceOrigins } from "./service-origins.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
-const target = path.join(root, ".generated", "project");
+const target = process.env.SMARTDETECTOR_VEGA_WORK_DIR ? path.resolve(process.env.SMARTDETECTOR_VEGA_WORK_DIR) : path.join(root, ".generated", "project");
 function run(command, args, cwd = root) {
   const result = spawnSync(command, args, { cwd, stdio: "inherit" });
   if (result.error || result.status !== 0)
     throw Error(`${command} failed: ${result.error?.message ?? result.status}`);
 }
 try {
-  const origin = serviceOrigin(
-    process.env.SMARTDETECTOR_VEGA_ORIGIN || "https://smartdetector.com",
-  );
+  const origins = serviceOrigins();
   const version = process.env.SMARTDETECTOR_RELEASE_VERSION || "0.1.0";
   const buildNumber = process.env.SMARTDETECTOR_VEGA_BUILD_NUMBER || "1";
   if (
@@ -71,7 +69,7 @@ try {
   );
   writeFileSync(
     path.join(target, "src/config.ts"),
-    `export const SERVICE_ORIGIN=${JSON.stringify(origin)};\n`,
+    `export const SERVICE_ORIGIN=__DEV__?${JSON.stringify(origins.development)}:${JSON.stringify(origins.production)};\n`,
   );
   writeFileSync(
     path.join(target, "index.js"),
@@ -87,6 +85,7 @@ try {
     "const {getDefaultConfig,mergeConfig}=require('@react-native/metro-config');\nconst defaults=getDefaultConfig(__dirname);\nmodule.exports=mergeConfig(defaults,{resolver:{sourceExts:[...defaults.resolver.sourceExts,'mjs']}});\n",
   );
   pkg.version = version;
+  pkg.dependencies["qrcode-generator"] = "2.0.4";
   pkg.overrides = JSON.parse(
     readFileSync(path.join(root, "dependency-overrides.json"), "utf8"),
   );

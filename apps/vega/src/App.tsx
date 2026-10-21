@@ -29,6 +29,7 @@ import {
 import { SERVICE_ORIGIN } from "./config";
 import { browserVoiceAvailable, startBrowserVoice } from "./voice";
 import { brandMark } from "./brand";
+import Pairing from "./PairingScreen";
 type Box = {
   label: string;
   advisory?: boolean;
@@ -59,24 +60,76 @@ function Action({
   onPress,
   disabled = false,
   preferred = false,
+  onFocused,
+  navigation = false,
+  selected = false,
+  label,
 }: {
   children: React.ReactNode;
   onPress: () => void;
   disabled?: boolean;
   preferred?: boolean;
+  onFocused?: () => void;
+  navigation?: boolean;
+  selected?: boolean;
+  label?: string;
 }) {
   const [focused, setFocused] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{
+        disabled,
+        selected: navigation ? selected : undefined,
+      }}
       disabled={disabled}
       hasTVPreferredFocus={preferred}
-      onFocus={() => setFocused(true)}
+      onFocus={() => {
+        setFocused(true);
+        onFocused?.();
+      }}
       onBlur={() => setFocused(false)}
       onPress={onPress}
-      style={[s.button, focused && s.focus, disabled && s.disabled]}
+      style={[
+        s.button,
+        navigation && s.navButton,
+        selected && s.navSelected,
+        focused && s.focus,
+        disabled && s.disabled,
+      ]}
     >
       <Text style={s.buttonText}>{children}</Text>
+    </Pressable>
+  );
+}
+function MediaCard({
+  children,
+  width,
+  label,
+  onPress,
+  onFocused,
+}: {
+  children: React.ReactNode;
+  width: number;
+  label: string;
+  onPress: () => void;
+  onFocused: () => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      onFocus={() => {
+        setFocused(true);
+        onFocused();
+      }}
+      onBlur={() => setFocused(false)}
+      style={[s.card, { width }, focused && s.focus]}
+    >
+      {children}
     </Pressable>
   );
 }
@@ -96,7 +149,7 @@ function Evidence({
     height = width / ratio;
   return (
     <View
-      style={[s.evidence, large && { height: 360 }]}
+      style={[s.evidence, large && { height: 240 }]}
       onLayout={(e) => setSize(e.nativeEvent.layout)}
     >
       {uri ? (
@@ -126,14 +179,14 @@ function Evidence({
                 (d) =>
                   d.box &&
                   [d.box.x, d.box.y, d.box.width, d.box.height].every(
-                    Number.isFinite,
+                    Number.isFinite
                   ) &&
                   d.box.x >= 0 &&
                   d.box.y >= 0 &&
                   d.box.width > 0 &&
                   d.box.height > 0 &&
                   d.box.x + d.box.width <= 1.001 &&
-                  d.box.y + d.box.height <= 1.001,
+                  d.box.y + d.box.height <= 1.001
               )
               .map((d, i) => (
                 <View
@@ -171,12 +224,31 @@ export function App() {
   const [voiceNote, setVoiceNote] = useState("");
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state !== "active") { stopVoice.current?.(); stopVoice.current = null; }
+      if (state !== "active") {
+        stopVoice.current?.();
+        stopVoice.current = null;
+      }
     });
-    return () => { stopVoice.current?.(); subscription.remove(); };
+    return () => {
+      stopVoice.current?.();
+      subscription.remove();
+    };
   }, []);
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const compact = screenHeight < 750;
+  const [section, setSection] = useState<"devices" | "events" | "search">(
+    "devices"
+  );
+  const cameraRail = useRef<ScrollView>(null),
+    eventRail = useRef<ScrollView>(null),
+    frameRail = useRef<ScrollView>(null),
+    bodyScroll = useRef<ScrollView>(null);
+  const cameraY = useRef(0),
+    eventY = useRef(0);
   const mobile = screenWidth < 700;
+  const cardWidth = mobile
+    ? Math.min(340, screenWidth - 32)
+    : Math.min(248, Math.floor((screenWidth - 40) / 4.3));
   const client = useMemo(() => createClient(SERVICE_ORIGIN), []);
   // Display tokens and evidence are memory-only; restarting requires pairing again.
   const [token, setToken] = useState(""),
@@ -196,6 +268,16 @@ export function App() {
     [alerts, setAlerts] = useState(true),
     [settingsOpen, setSettingsOpen] = useState(false),
     [disconnectPrompt, setDisconnectPrompt] = useState(false);
+  useEffect(() => {
+    bodyScroll.current?.scrollTo({ y: 0, animated: false });
+  }, [
+    section,
+    selectedId,
+    deviceId,
+    settingsOpen,
+    disconnectPrompt,
+    submitted,
+  ]);
   const seen = useRef<Set<string> | null>(null),
     epoch = useRef(0),
     controllers = useRef(new Set<AbortController>()),
@@ -208,7 +290,9 @@ export function App() {
     return c;
   }
   const reset = useCallback(() => {
-    stopVoice.current?.(); stopVoice.current = null; setVoiceNote("");
+    stopVoice.current?.();
+    stopVoice.current = null;
+    setVoiceNote("");
     epoch.current++;
     controllers.current.forEach((c) => c.abort());
     controllers.current.clear();
@@ -265,8 +349,19 @@ export function App() {
       setQuery("");
       return true;
     }
+    if (section !== "devices") {
+      setSection("devices");
+      return true;
+    }
     return false;
-  }, [selectedId, deviceId, submitted, disconnectPrompt, settingsOpen]);
+  }, [
+    selectedId,
+    deviceId,
+    submitted,
+    disconnectPrompt,
+    settingsOpen,
+    section,
+  ]);
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", back);
     return () => sub.remove();
@@ -281,6 +376,7 @@ export function App() {
       if (generation !== epoch.current || c.signal.aborted) return;
       if (
         typeof p.userCode !== "string" ||
+        !/^[A-F0-9]{5}-[A-F0-9]{5}$/.test(p.userCode) ||
         typeof p.deviceCode !== "string" ||
         !Number.isFinite(p.expiresAt)
       )
@@ -294,6 +390,14 @@ export function App() {
       if (generation === epoch.current) setBusy(false);
     }
   }
+  const pairingStarted = useRef(false);
+  useEffect(() => {
+    if (!pairingStarted.current) {
+      pairingStarted.current = true;
+      void begin();
+    }
+  }, []);
+
   useEffect(() => {
     if (!pair || token) return;
     let disposed = false,
@@ -328,7 +432,7 @@ export function App() {
     };
     const timer = setInterval(
       () => void poll(),
-      Math.max(5, Math.min(30, pair.interval || 5)) * 1000,
+      Math.max(5, Math.min(30, pair.interval || 5)) * 1000
     );
     return () => {
       disposed = true;
@@ -365,7 +469,7 @@ export function App() {
         if (fresh && allowAlerts.current) setNotice(fresh);
         seen.current = new Set(next.incidents.map((i: Event) => i.id));
         setNotice((n) =>
-          n && next.incidents.some((i: Event) => i.id === n.id) ? n : null,
+          n && next.incidents.some((i: Event) => i.id === n.id) ? n : null
         );
         setFeed(next);
         setResults(search?.items ?? null);
@@ -374,12 +478,12 @@ export function App() {
             ? search.matched +
                 " matching events" +
                 (search.truncated ? " · limited; narrow your search" : "")
-            : "",
+            : ""
         );
         setSelectedId((id) =>
           (search?.items ?? next.incidents).some((i: Event) => i.id === id)
             ? id
-            : "",
+            : ""
         );
         setError("");
       } catch (e) {
@@ -390,7 +494,7 @@ export function App() {
           setError(
             e instanceof AccessRevoked
               ? e.message
-              : "Feed or search unavailable. Retrying automatically.",
+              : "Feed or search unavailable. Retrying automatically."
           );
         }
       } finally {
@@ -419,7 +523,7 @@ export function App() {
   const device = feed?.devices.find((d) => d.id === deviceId),
     events: Event[] = eventsForDevice(
       results ?? feed?.incidents ?? [],
-      deviceId,
+      deviceId
     ),
     selected = events.find((i) => i.id === selectedId);
   function open(event: Event) {
@@ -436,15 +540,27 @@ export function App() {
           mobile && { paddingHorizontal: 16, paddingVertical: 12 },
         ]}
       >
-        <Image source={brandMark} accessibilityLabel="SmartDetector shield" style={{ width: 36, height: 36 }} />
+        <Image
+          source={brandMark}
+          accessibilityLabel="SmartDetector shield"
+          style={{ width: 26, height: 26 }}
+        />
         <View>
           <Text style={s.brand}>SmartDetector</Text>
-          <Text style={s.muted}>Console · Native Vega app</Text>
         </View>
         {!!token && (
-          <View style={[s.actions, mobile && { width: "100%" }]}>
+          <View
+            style={[
+              s.actions,
+              { marginVertical: 0 },
+              mobile && { width: "100%" },
+            ]}
+          >
             <Action
+              navigation
+              selected={section === "devices" && !settingsOpen}
               onPress={() => {
+                setSection("devices");
                 setSelectedId("");
                 setDeviceId("");
                 setSubmitted("");
@@ -454,59 +570,91 @@ export function App() {
                 setDisconnectPrompt(false);
               }}
             >
-              Security center
+              Devices
             </Action>
             <Action
+              navigation
+              selected={section === "events" && !settingsOpen}
               onPress={() => {
-                setAlerts((a) => !a);
-                setNotice(null);
+                setSettingsOpen(false);
+                setDisconnectPrompt(false);
+                setSection("events");
+                setDeviceId("");
+                setSelectedId("");
+                setSubmitted("");
               }}
             >
-              Alerts {alerts ? "on" : "off"}
+              History
             </Action>
-            <Action onPress={() => setSettingsOpen(true)}>
-              Console settings
+            <Action
+              navigation
+              label="Search events"
+              selected={section === "search" && !settingsOpen}
+              onPress={() => {
+                setSettingsOpen(false);
+                setDisconnectPrompt(false);
+                setSection("search");
+                setDeviceId("");
+                setSelectedId("");
+                setSubmitted("");
+              }}
+            >
+              Search
             </Action>
-            <Action onPress={() => setRefreshEpoch((n) => n + 1)}>Refresh</Action>
+            <Action
+              navigation
+              label="Console settings"
+              selected={settingsOpen}
+              onPress={() => setSettingsOpen(true)}
+            >
+              Settings
+            </Action>
+            {(selectedId || deviceId || submitted) && (
+              <Action
+                navigation
+                onPress={() => {
+                  back();
+                }}
+              >
+                ← Back
+              </Action>
+            )}
           </View>
         )}
       </View>
       <ScrollView
+        ref={bodyScroll}
         contentContainerStyle={[
           s.body,
+          !mobile && { padding: 20, paddingBottom: 16 },
           mobile && { padding: 16, paddingBottom: 40 },
         ]}
         keyboardShouldPersistTaps="handled"
       >
         {!token ? (
-          <View>
-            <Text style={[s.title, mobile && { fontSize: 28 }]}>
-              Your devices. One perspective.
-            </Text>
-            <Text style={s.paragraph}>
-              Connect this TV without entering your password or an API key.
-            </Text>
-            <Text style={s.paragraph}>1. Get a pairing code below.</Text>
-            <Text style={s.paragraph}>
-              2. On your phone, sign in at {SERVICE_ORIGIN}/tv/connect.
-            </Text>
-            <Text style={s.paragraph}>
-              3. Select the intended location and approve this display.
-            </Text>
-            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/tv/connect`)}>
-              Open pairing approval
-            </Action>
+          <View style={{ gap: 12 }}>
             {pair ? (
+              <Pairing
+                origin={SERVICE_ORIGIN}
+                code={pair.userCode}
+                expiresAt={pair.expiresAt}
+                mobile={mobile}
+                compact={compact}
+              />
+            ) : (
               <>
-                <Text
-                  style={[s.code, mobile && { fontSize: 36, letterSpacing: 2 }]}
-                >
-                  {pair.userCode}
+                <Text style={s.title}>Connect your TV</Text>
+                <Text style={s.paragraph}>
+                  Scan a QR code with your phone to sign in and approve this
+                  display.
                 </Text>
-                <Text style={s.muted}>
-                  Waiting for approval · expires{" "}
-                  {new Date(pair.expiresAt).toLocaleTimeString()}
-                </Text>
+                <Action preferred disabled={busy} onPress={() => void begin()}>
+                  {busy ? "Preparing your code…" : "Get pairing code"}
+                </Action>
+              </>
+            )}
+            {pair && (
+              <View style={s.actions}>
                 <Action
                   onPress={() => {
                     epoch.current++;
@@ -516,15 +664,10 @@ export function App() {
                 >
                   Cancel pairing
                 </Action>
-              </>
-            ) : (
-              <Action preferred disabled={busy} onPress={() => void begin()}>
-                {busy ? "Connecting…" : "Get pairing code"}
-              </Action>
+              </View>
             )}
-            <Text style={s.note}>
-              Read-only access. Pair again after closing the app. Revoke a
-              display permanently under Devices → Fire TV on your phone.
+            <Text style={s.muted}>
+              Read-only display access. Your password stays on your phone.
             </Text>
           </View>
         ) : disconnectPrompt ? (
@@ -535,96 +678,248 @@ export function App() {
               the server connection, use Devices → Fire TV in SmartDetector.
             </Text>
             <View style={s.actions}>
-              <Action preferred onPress={() => setDisconnectPrompt(false)}>Keep connected</Action>
-              <Action onPress={reset}>Disconnect and require pairing again</Action>
+              <Action preferred onPress={() => setDisconnectPrompt(false)}>
+                Keep connected
+              </Action>
+              <Action onPress={reset}>
+                Disconnect and require pairing again
+              </Action>
             </View>
           </View>
         ) : settingsOpen ? (
           <View style={s.panel}>
             <Text style={s.heading}>Console settings</Text>
-            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/privacy`)}>Privacy policy</Action>
-            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/privacy#data-deletion`)}>Delete saved data</Action>
-            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/privacy#account-deletion`)}>Request account deletion</Action>
-            <Action preferred onPress={() => setSettingsOpen(false)}>Back to console</Action>
-            <Text style={s.paragraph}>Disconnect only when you want to pair this console again. Normal browsing does not require disconnecting.</Text>
-            <Action onPress={() => setDisconnectPrompt(true)}>Disconnect this console…</Action>
+            <View style={s.actions}>
+              <Action onPress={() => setAlerts((a) => !a)}>
+                Alerts {alerts ? "on" : "off"}
+              </Action>
+              <Action onPress={() => setRefreshEpoch((n) => n + 1)}>
+                Refresh now
+              </Action>
+            </View>
+            <View style={s.actions}>
+              <Action
+                onPress={() =>
+                  void Linking.openURL(`${SERVICE_ORIGIN}/privacy`)
+                }
+              >
+                Privacy policy
+              </Action>
+              <Action
+                onPress={() =>
+                  void Linking.openURL(
+                    `${SERVICE_ORIGIN}/privacy#data-deletion`
+                  )
+                }
+              >
+                Delete saved data
+              </Action>
+              <Action
+                onPress={() =>
+                  void Linking.openURL(
+                    `${SERVICE_ORIGIN}/privacy#account-deletion`
+                  )
+                }
+              >
+                Request account deletion
+              </Action>
+            </View>
+            <View style={s.actions}>
+              <Action preferred onPress={() => setSettingsOpen(false)}>
+                Back to console
+              </Action>
+
+              <Action onPress={() => setDisconnectPrompt(true)}>
+                Disconnect this console…
+              </Action>
+            </View>
+            <Text style={s.muted}>
+              Disconnect only to pair this console again. Revoke access under
+              Devices → Fire TV.
+            </Text>
           </View>
         ) : (
           <>
-            {(selectedId || deviceId || submitted) && (
-              <Action
-                preferred
-                onPress={() => {
-                  back();
-                }}
-              >
-                ← Back
-              </Action>
-            )}
             <Text style={[s.title, mobile && { fontSize: 28 }]}>
               {selected
                 ? "Event review"
-                : (device?.name ?? "Your location, in perspective.")}
+                : device?.name ??
+                  (section === "search"
+                    ? submitted
+                      ? "Search results"
+                      : "Search saved events"
+                    : section === "events"
+                    ? "Recent events"
+                    : "Your devices")}
             </Text>
             <Text style={s.muted}>
               {feed
                 ? "Updated " + new Date(feed.updatedAt).toLocaleTimeString()
                 : "Connecting…"}{" "}
-              · saved evidence · refreshes every five seconds
+              · saved activity
+              {feed
+                ? ` · ${feed.devices.length} camera${
+                    feed.devices.length === 1 ? "" : "s"
+                  } · ${feed.incidents.length} events`
+                : ""}
             </Text>
             {selected ? (
-              <View style={[s.panel, mobile && { padding: 12 }]}>
-                <Evidence
-                  large={!mobile}
-                  image={
-                    selected.frames?.[frame]?.preview ?? selected.thumbnail
-                  }
-                  detections={selected.frames?.[frame]?.detections}
-                />
-                <View style={s.actions}>
-                  {selected.frames?.map((f, i) => (
-                    <Action key={i} onPress={() => setFrame(i)}>
-                      {i === frame ? "● " : ""}
-                      {(f.at_ms / 1000).toFixed(1)}s
-                    </Action>
-                  ))}
+              <View
+                style={[
+                  s.panel,
+                  !mobile && { flexDirection: "row", gap: 20 },
+                  mobile && { padding: 12 },
+                ]}
+              >
+                <View style={!mobile ? { flex: 1 } : undefined}>
+                  <Evidence
+                    large={!mobile}
+                    image={
+                      selected.frames?.[frame]?.preview ?? selected.thumbnail
+                    }
+                    detections={selected.frames?.[frame]?.detections}
+                  />
                 </View>
-                <Text style={s.heading}>{selected.summary}</Text>
-                <Text style={s.paragraph}>
-                  {selected.deviceId} · {new Date(selected.at).toLocaleString()}{" "}
-                  · {selected.state}
-                </Text>
-                <Text style={s.note}>
-                  Sampled images, not continuous video. Green: measured
-                  detections. Amber: advisory AI grounding. No identity or
-                  threat certainty is implied.
-                </Text>
-                {!deviceId && (
-                  <Action onPress={() => { setDeviceId(selected.deviceId); setSelectedId(""); setFrame(0); setSubmitted(""); setResults(null); }}>
-                    Browse this device’s events
-                  </Action>
-                )}
+                <View style={!mobile ? { flex: 1 } : undefined}>
+                  <ScrollView
+                    ref={frameRail}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={s.actions}
+                  >
+                    {selected.frames?.slice(0, 12).map((f, i) => (
+                      <Action
+                        key={i}
+                        onFocused={() =>
+                          frameRail.current?.scrollTo({
+                            x: i * 82,
+                            animated: true,
+                          })
+                        }
+                        onPress={() => setFrame(i)}
+                      >
+                        {i === frame ? "● " : ""}
+                        {(f.at_ms / 1000).toFixed(1)}s
+                      </Action>
+                    ))}
+                  </ScrollView>
+                  <Text numberOfLines={2} style={s.heading}>
+                    {selected.summary}
+                  </Text>
+                  <Text style={s.paragraph}>
+                    {selected.deviceId} ·{" "}
+                    {new Date(selected.at).toLocaleString()} · {selected.state}
+                  </Text>
+                  <Text numberOfLines={3} style={s.muted}>
+                    Sampled images, not continuous video. Green: measured
+                    objects; amber: advisory AI. Not an identity or threat
+                    determination.
+                  </Text>
+                  {!deviceId && section === "devices" && (
+                    <Action
+                      onPress={() => {
+                        setDeviceId(selected.deviceId);
+                        setSelectedId("");
+                        setFrame(0);
+                        setSubmitted("");
+                        setResults(null);
+                      }}
+                    >
+                      Browse this device’s events
+                    </Action>
+                  )}
+                </View>
               </View>
             ) : (
               <>
-                {device && (
-                  <View style={[s.panel, mobile && { padding: 12 }]}>
-                    <Evidence large={!mobile} image={events[0]?.frames?.[0]?.preview ?? events[0]?.thumbnail} detections={events[0]?.frames?.[0]?.detections} />
-                    <Text style={s.heading}>{events[0]?.summary ?? "Waiting for the first event"}</Text>
-                    <Text style={s.muted}>Latest retained evidence · {device.status}</Text>
-                    {events[0] && <Action onPress={() => open(events[0])}>Review latest event</Action>}
-                    {device.liveView && <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/devices/${encodeURIComponent(device.id)}`)}>Open camera live view in web console</Action>}
+                {device && section !== "events" && section !== "search" && (
+                  <View
+                    style={[
+                      s.panel,
+                      !mobile && { flexDirection: "row", gap: 20 },
+                      mobile && { padding: 12 },
+                    ]}
+                  >
+                    <View style={!mobile ? { flex: 1 } : undefined}>
+                      <Evidence
+                        large={!mobile}
+                        image={
+                          events[0]?.frames?.[0]?.preview ??
+                          events[0]?.thumbnail
+                        }
+                        detections={events[0]?.frames?.[0]?.detections}
+                      />
+                    </View>
+                    <View style={!mobile ? { flex: 1 } : undefined}>
+                      <Text numberOfLines={2} style={s.heading}>
+                        {events[0]?.summary ?? "Waiting for the first event"}
+                      </Text>
+                      <Text style={s.muted}>
+                        Latest retained evidence · {device.status}
+                      </Text>
+                      <View style={s.actions}>
+                        <Action onPress={() => setSection("events")}>
+                          Device history
+                        </Action>
+                        {events[0] && (
+                          <Action onPress={() => open(events[0])}>
+                            Review latest event
+                          </Action>
+                        )}
+                        {device.liveView && (
+                          <Action
+                            onPress={() =>
+                              void Linking.openURL(
+                                SERVICE_ORIGIN +
+                                  "/devices/" +
+                                  encodeURIComponent(device.id)
+                              )
+                            }
+                          >
+                            Live view in web console
+                          </Action>
+                        )}
+                      </View>
+                      <Text numberOfLines={2} style={s.muted}>
+                        Saved event images are shown here. Live video opens in
+                        the web console.
+                      </Text>
+                    </View>
                   </View>
                 )}
-                {!deviceId && feed && <Text style={s.paragraph}>{feed.devices.length} connected devices · {feed.incidents.length} recent events</Text>}
-                {!deviceId && (
+                {!deviceId && section === "devices" && (
                   <>
-                    <Text style={s.heading}>Devices</Text>
-                    <View style={s.grid}>
-                      {feed?.devices.map((d) => (
-                        <View
+                    <Text style={s.heading}>Cameras</Text>
+                    <ScrollView
+                      ref={cameraRail}
+                      onLayout={(e) => {
+                        cameraY.current = e.nativeEvent.layout.y;
+                      }}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={s.rail}
+                    >
+                      {feed?.devices.map((d, index) => (
+                        <MediaCard
                           key={d.id}
-                          style={[s.card, mobile && { width: "100%" }]}
+                          width={cardWidth}
+                          label="Browse device"
+                          onPress={() => {
+                            setDeviceId(d.id);
+                            setSubmitted("");
+                            setResults(null);
+                            setQuery("");
+                          }}
+                          onFocused={() => {
+                            cameraRail.current?.scrollTo({
+                              x: index * (cardWidth + 16),
+                              animated: true,
+                            });
+                            bodyScroll.current?.scrollTo({
+                              y: Math.max(0, cameraY.current - 40),
+                              animated: true,
+                            });
+                          }}
                         >
                           <Evidence
                             image={
@@ -632,133 +927,202 @@ export function App() {
                                 ?.thumbnail
                             }
                           />
-                          <Text style={s.heading}>{d.name}</Text>
+                          <Text numberOfLines={1} style={s.cardTitle}>
+                            {d.name}
+                          </Text>
                           <Text style={s.muted}>{d.status}</Text>
-                          <Action
-                            onPress={() => {
-                              setDeviceId(d.id);
-                              setSubmitted("");
-                              setResults(null);
-                              setQuery("");
-                            }}
-                          >
-                            Browse device
-                          </Action>
-                        </View>
+                        </MediaCard>
                       ))}
-                    </View>
+                    </ScrollView>
                     {feed && !feed.devices.length && (
                       <View style={s.panel}>
                         <Text style={s.heading}>Add your first device</Text>
                         <Text style={s.paragraph}>
-                          No cameras are connected to this location. Open Devices on your phone or browser, select this same location, and connect your Ring account to discover shared cameras.
+                          No cameras are connected to this location. Open
+                          Devices on your phone or browser, select this same
+                          location, and connect your Ring account to discover
+                          shared cameras.
                         </Text>
-                        <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/devices`)}>
+                        <Action
+                          onPress={() =>
+                            void Linking.openURL(`${SERVICE_ORIGIN}/devices`)
+                          }
+                        >
                           Add device
                         </Action>
                       </View>
                     )}
                   </>
                 )}
-                <View style={[s.panel, mobile && { padding: 12 }]}>
-                  <Text style={s.heading}>Search saved events</Text>
-                  <TextInput
-                    ref={searchInput}
-                    returnKeyType="search"
-                    accessibilityLabel="Search saved events"
-                    value={query}
-                    maxLength={400}
-                    onChangeText={setQuery}
-                    onSubmitEditing={() => {
-                      if (query.trim()) setSubmitted(query.trim());
-                    }}
-                    placeholder="Show me people at my front door today"
-                    placeholderTextColor="#687c90"
-                    style={s.input}
-                  />
-                  <View style={s.actions}>
-                    <Action onPress={() => {
-                      stopVoice.current?.(); stopVoice.current = null;
-                      searchInput.current?.focus();
-                      setVoiceNote("Use voice dictation if your TV keyboard offers it. Review the text, then select Search. Otherwise type your query.");
-                    }}>TV keyboard / voice</Action>
-                    {browserVoiceAvailable && <Action onPress={() => {
-                      stopVoice.current?.();
-                      setVoiceNote("Listening for up to 15 seconds. Your browser/OS speech service may process audio.");
-                      try { stopVoice.current = startBrowserVoice((text) => { setQuery(text); setSubmitted(""); setResults(null); }, setVoiceNote); }
-                      catch (error) { setVoiceNote(error instanceof Error ? error.message : "Voice input unavailable. Use the keyboard."); }
-                    }}>Use browser mic</Action>}
-                    {browserVoiceAvailable && <Action onPress={() => { stopVoice.current?.(); stopVoice.current = null; setVoiceNote("Microphone stopped. Review the text, then select Search."); }}>Stop microphone</Action>}
-                    <Action
-                      disabled={!query.trim()}
-                      onPress={() => setSubmitted(query.trim())}
-                    >
-                      Search
-                    </Action>
-                    <Action
-                      onPress={() => {
-                        stopVoice.current?.(); stopVoice.current = null; setVoiceNote("");
-                        setQuery("");
-                        setSubmitted("");
-                        setResults(null);
-                        setSearchNote("");
+                {section === "search" && !submitted && (
+                  <View style={[s.panel, mobile && { padding: 12 }]}>
+                    <TextInput
+                      ref={searchInput}
+                      returnKeyType="search"
+                      accessibilityLabel="Search saved events"
+                      value={query}
+                      maxLength={400}
+                      onChangeText={setQuery}
+                      onSubmitEditing={() => {
+                        if (query.trim()) setSubmitted(query.trim());
                       }}
-                    >
-                      Clear
-                    </Action>
-                  </View>
-                  <Text style={s.note}>
-                    TV dictation depends on the system keyboard. The remote Alexa button is not captured by this app. Browser microphone recognition, when available, may use your browser/OS provider. Only submitted search text is sent to SmartDetector; this app does not retain audio.
-                  </Text>
-                  {!!voiceNote && <Text accessibilityLiveRegion="polite" style={s.muted}>{voiceNote}</Text>}
-                  {!!searchNote && <Text style={s.muted}>{searchNote}</Text>}
-                </View>
-                <Text style={s.heading}>
-                  {submitted
-                    ? "Search results"
-                    : device
-                      ? "Device history"
-                      : "Recent events"}
-                </Text>
-                <View style={s.grid}>
-                  {events.map((event) => (
-                    <View
-                      key={event.id}
-                      style={[s.card, mobile && { width: "100%" }]}
-                    >
-                      <Evidence
-                        image={event.thumbnail}
-                        detections={event.frames?.[0]?.detections}
-                      />
-                      <Text numberOfLines={3} style={s.paragraph}>
-                        {event.summary}
-                      </Text>
-                      <Text style={s.muted}>
-                        {new Date(event.at).toLocaleString()}
-                      </Text>
-                      <Action onPress={() => open(event)}>Review event</Action>
+                      placeholder="Show me people at my front door today"
+                      placeholderTextColor="#687c90"
+                      style={s.input}
+                    />
+                    <View style={s.actions}>
+                      <Action
+                        onPress={() => {
+                          stopVoice.current?.();
+                          stopVoice.current = null;
+                          searchInput.current?.focus();
+                          setVoiceNote(
+                            "Use voice dictation if your TV keyboard offers it. Review the text, then select Search. Otherwise type your query."
+                          );
+                        }}
+                      >
+                        TV keyboard / voice
+                      </Action>
+                      {browserVoiceAvailable && (
+                        <Action
+                          onPress={() => {
+                            stopVoice.current?.();
+                            setVoiceNote(
+                              "Listening for up to 15 seconds. Your browser/OS speech service may process audio."
+                            );
+                            try {
+                              stopVoice.current = startBrowserVoice((text) => {
+                                setQuery(text);
+                                setSubmitted("");
+                                setResults(null);
+                              }, setVoiceNote);
+                            } catch (error) {
+                              setVoiceNote(
+                                error instanceof Error
+                                  ? error.message
+                                  : "Voice input unavailable. Use the keyboard."
+                              );
+                            }
+                          }}
+                        >
+                          Use browser mic
+                        </Action>
+                      )}
+                      {browserVoiceAvailable && (
+                        <Action
+                          onPress={() => {
+                            stopVoice.current?.();
+                            stopVoice.current = null;
+                            setVoiceNote(
+                              "Microphone stopped. Review the text, then select Search."
+                            );
+                          }}
+                        >
+                          Stop microphone
+                        </Action>
+                      )}
+                      <Action
+                        disabled={!query.trim()}
+                        onPress={() => setSubmitted(query.trim())}
+                      >
+                        Search
+                      </Action>
+                      <Action
+                        onPress={() => {
+                          stopVoice.current?.();
+                          stopVoice.current = null;
+                          setVoiceNote("");
+                          setQuery("");
+                          setSubmitted("");
+                          setResults(null);
+                          setSearchNote("");
+                        }}
+                      >
+                        Clear
+                      </Action>
                     </View>
-                  ))}
-                </View>
-                {feed && !events.length && (
-                  <View style={s.panel}>
-                    <Text style={s.heading}>{submitted ? "No matching saved events" : "Waiting for camera events"}</Text>
-                    <Text style={s.paragraph}>
-                      {submitted
-                        ? "Try another search or clear the filters to browse saved activity."
-                        : "Connected cameras will appear here with real images as events arrive. Trigger motion or a doorbell press on a shared camera. This console refreshes every five seconds; it does not generate sample events."}
+                    <Text style={s.note}>
+                      Use TV keyboard dictation when available. Browser speech
+                      may use your OS/cloud provider; review the words before
+                      Search. SmartDetector does not retain audio.
                     </Text>
-                    <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/devices/integrations/ring`)}>
-                      {feed.devices.length ? "Manage camera connection" : "Add Ring connection"}
-                    </Action>
+                    {!!voiceNote && (
+                      <Text accessibilityLiveRegion="polite" style={s.muted}>
+                        {voiceNote}
+                      </Text>
+                    )}
+                    {!!searchNote && <Text style={s.muted}>{searchNote}</Text>}
                   </View>
                 )}
-                {device?.liveView && (
-                  <Text style={s.note}>
-                    Native Ring live video is not available yet. Use the web
-                    console for live viewing; this app reviews retained event
-                    frames.
-                  </Text>
+                {(section === "events" ||
+                  !!submitted ||
+                  (section === "devices" && !deviceId)) && (
+                  <>
+                    {section === "devices" && (
+                      <Text style={s.heading}>
+                        {submitted
+                          ? "Search results"
+                          : device
+                          ? "Device history"
+                          : "Recent events"}
+                      </Text>
+                    )}
+                    {events.length > 0 && (
+                      <ScrollView
+                        ref={eventRail}
+                        onLayout={(e) => {
+                          eventY.current = e.nativeEvent.layout.y;
+                        }}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={s.rail}
+                      >
+                        {events.map((event, index) => (
+                          <MediaCard
+                            key={event.id}
+                            width={cardWidth}
+                            label="Review event"
+                            onPress={() => open(event)}
+                            onFocused={() => {
+                              eventRail.current?.scrollTo({
+                                x: index * (cardWidth + 16),
+                                animated: true,
+                              });
+                              bodyScroll.current?.scrollTo({
+                                y: Math.max(0, eventY.current - 40),
+                                animated: true,
+                              });
+                            }}
+                          >
+                            <Evidence
+                              image={event.thumbnail}
+                              detections={event.frames?.[0]?.detections}
+                            />
+                            <Text numberOfLines={2} style={s.cardTitle}>
+                              {event.summary}
+                            </Text>
+                            <Text style={s.muted}>
+                              {new Date(event.at).toLocaleString()}
+                            </Text>
+                          </MediaCard>
+                        ))}
+                      </ScrollView>
+                    )}
+                    {feed && !events.length && (
+                      <View style={{ paddingVertical: 8, gap: 4 }}>
+                        <Text style={s.cardTitle}>
+                          {submitted
+                            ? "No matching saved events"
+                            : "Waiting for camera events"}
+                        </Text>
+                        <Text style={s.muted}>
+                          {submitted
+                            ? "Try another search or clear the filters to browse saved activity."
+                            : "Camera activity will appear here when events arrive. Refreshes automatically."}
+                        </Text>
+                      </View>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -769,10 +1133,6 @@ export function App() {
             {error}
           </Text>
         )}
-        <Text style={s.note}>
-          Use remote arrows, Select and Back. Alerts appear only while this app
-          is open. Clear saved history in SmartDetector Settings.
-        </Text>
       </ScrollView>
       {notice && token && !disconnectPrompt && (
         <View
@@ -810,51 +1170,72 @@ const s = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 40,
-    paddingVertical: 18,
+    paddingHorizontal: 24,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderColor: "#dce5ed",
-    gap: 16,
+    gap: 12,
   },
   mark: { backgroundColor: "#007bb9", padding: 12, borderRadius: 12 },
   markText: { color: "#fff", fontSize: 26, fontWeight: "800" },
-  brand: { fontSize: 22, fontWeight: "900", letterSpacing: -0.6, color: "#142e48" },
+  brand: {
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+    color: "#142e48",
+  },
   body: { padding: 40, paddingBottom: 80 },
   title: {
-    fontSize: 36,
+    fontSize: 24,
     fontWeight: "600",
     color: "#142e48",
-    marginVertical: 22,
+    marginVertical: 6,
   },
   heading: {
-    fontSize: 23,
+    fontSize: 18,
     fontWeight: "600",
     color: "#142e48",
-    marginVertical: 14,
+    marginVertical: 6,
   },
   paragraph: {
-    fontSize: 18,
-    lineHeight: 28,
+    fontSize: 15,
+    lineHeight: 22,
     color: "#24465e",
     marginVertical: 8,
   },
-  muted: { fontSize: 15, color: "#597188" },
-  note: { fontSize: 15, lineHeight: 24, color: "#597188", marginVertical: 18 },
+  muted: { fontSize: 12, color: "#597188" },
+  note: { fontSize: 13, lineHeight: 20, color: "#597188", marginVertical: 10 },
   actions: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
-    marginVertical: 12,
+    gap: 10,
+    marginVertical: 8,
   },
   button: {
     backgroundColor: "#edf5fc",
     borderWidth: 3,
     borderColor: "transparent",
-    padding: 12,
+    padding: 8,
     borderRadius: 8,
     marginVertical: 4,
   },
-  buttonText: { fontSize: 18, color: "#005e99", fontWeight: "600" },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#142e48",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  navButton: {
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginVertical: 0,
+    borderRadius: 4,
+  },
+  navSelected: { borderBottomColor: "#007bb9" },
+  buttonText: { fontSize: 15, color: "#005e99", fontWeight: "600" },
   focus: { borderColor: "#007bb9", backgroundColor: "#d9edff" },
   disabled: { opacity: 0.45 },
   code: {
@@ -862,18 +1243,24 @@ const s = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 6,
     color: "#007bb9",
-    marginVertical: 24,
+    marginVertical: 10,
   },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 20, marginVertical: 16 },
+  rail: {
+    flexDirection: "row",
+    gap: 16,
+    paddingVertical: 8,
+    paddingRight: 24,
+  },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 20, marginVertical: 8 },
   card: {
-    width: 320,
-    borderWidth: 1,
+    width: 220,
+    borderWidth: 2,
     borderColor: "#dce5ed",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 8,
+    padding: 8,
   },
   evidence: {
-    height: 200,
+    height: 112,
     backgroundColor: "#edf2f7",
     borderRadius: 8,
     overflow: "hidden",

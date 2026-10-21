@@ -5,6 +5,12 @@ services:
       dockerfile: preview/Dockerfile
     ports:
       - "127.0.0.1:${SMARTDETECTOR_NATIVE_PREVIEW_PORT:-8090}:8084"
+    volumes:
+      - ./src:/app/src:ro
+      - ./preview/index.html:/app/preview/index.html:ro
+      - ./preview/main.tsx:/app/preview/main.tsx:ro
+      - ./preview/config.ts:/app/preview/config.ts:ro
+      - ./preview/vite.config.mjs:/app/preview/vite.config.mjs:ro
     environment:
       SMARTDETECTOR_PREVIEW_API_TARGET: http://smartdetector-web:3000
     networks:

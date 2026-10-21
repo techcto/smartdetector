@@ -13,6 +13,6 @@ export async function proxy(req:NextRequest){
   const s=await verifySession(req.cookies.get(sessionCookie)?.value,process.env.SMARTDETECTOR_SESSION_SECRET??'');
   if(s)return NextResponse.next();
   if(p.startsWith('/api/'))return NextResponse.json({error:'unauthorized'},{status:401});
-  const login=new URL('/login',req.url);if(p==='/tv/connect'||p==='/console'||p==='/settings/account-deletion'||p==='/settings/data-deletion')login.searchParams.set('next',p);return NextResponse.redirect(login);
+  const login=new URL('/login',req.url);if(p==='/tv/connect'||p==='/console'||p==='/settings/account-deletion'||p==='/settings/data-deletion')login.searchParams.set('next',p==='/tv/connect'&&/^[A-F0-9]{5}-[A-F0-9]{5}$/i.test(req.nextUrl.searchParams.get('code')??'')?p+'?code='+encodeURIComponent(req.nextUrl.searchParams.get('code')!):p);return NextResponse.redirect(login);
 }
 export const config={matcher:['/((?!_next/static|_next/image|favicon.ico).*)']};

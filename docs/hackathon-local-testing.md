@@ -1,5 +1,7 @@
 # Hackathon local testing
 
+For the full Ubuntu/Vega/QR/Fast Refresh workflow, follow [Ubuntu TV development](ubuntu-tv-development.md).
+
 For camera testing, start with [Ring developer testing](ring-developer-testing.md): developer account → Playground → Connect Ring drawer → token renewal. Production Ring linking is a separate flow in that guide.
 
 **No Ring camera needed:** after starting Compose, run

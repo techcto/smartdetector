@@ -1,2 +1,2 @@
-// Browser-preview only. Native/release builds continue using src/config.ts.
-export const SERVICE_ORIGIN = "http://localhost:8082";
+// Vite replaces this at build time. Native uses React Native's __DEV__ instead.
+export const SERVICE_ORIGIN = import.meta.env.DEV ? "http://localhost:8082" : "https://smartdetector.com";

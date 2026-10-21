@@ -70,9 +70,36 @@ same workspace. Goyal’s native Ubuntu/Vega instructions are in the
 the simulator’s localhost is not the host computer. Native playback capabilities
 are not identical to web WebRTC playback.
 
-Discovery/live viewing does **not** automatically create analyzed events in the TV
-journal. Real webhook intake and configured AutoVision analysis must be tested
-separately. An [offline replay fixture](local-camera-replay.md) is an optional fallback,
+### Analyze Playground footage end to end
+
+1. Connect a fresh Playground token using the drawer above. No access to the
+   registered SmartDetector Ring app or someone else's cameras is required.
+2. Open the discovered Playground camera's **Live view** in SmartDetector and
+   select **Start live view**. Wait for actual video playback. Ring's Playground
+   offers Package/Vehicle/Motion sample streams; availability depends on Ring.
+3. The localhost action then captures footage and stops its live session before
+   submitting analysis. This
+   root-only action samples eight JPEG frames over seven seconds from that stream.
+   The last frame remains visible while stopped, labeled not live. On reopening,
+   the latest retained event preview is shown if one is available.
+   It invokes the same AutoVision analysis, privacy settings, persistence,
+   retention and event-delivery code used by real Ring events. Real inference
+   consumes service quota and may incur charges; nothing runs automatically.
+4. Open **History**, the camera's history, or the paired TV's recent events.
+   Expect actual analysis and any available evidence previews. The event source
+   is explicitly `ring-playground`, not a claimed production motion webhook.
+5. Replace the token after expiry to continue with the same discovered camera IDs.
+
+If video remains black or never plays, fix Ring/WebRTC connectivity first: an HTTP
+201 only establishes signaling, not playable media. No media means no sample can
+be analyzed. If AutoVision fails, the UI reports failure rather than inserting a
+fabricated result. The button/API are unavailable in production SaaS/private mode,
+for non-root users, and for normal production cameras.
+
+This validates real media → AutoVision → saved event → TV, but not Ring's OAuth,
+webhook signatures, queue delivery/retries, or production recorded-image retrieval.
+Those still require a real authorized staging camera. Clicking Motion in Ring's
+portal does not automatically post a signed motion webhook to SmartDetector. An [offline replay fixture](local-camera-replay.md) is an optional fallback,
 not the official Playground; it is stopped/disabled by default.
 
 ```bash

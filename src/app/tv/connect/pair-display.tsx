@@ -1,6 +1,7 @@
 'use client';
 import {useState} from 'react';
 import Link from 'next/link';
+import {formatTvCode,completeTvCode} from '@/lib/tv-code';
 
 export default function PairDisplay({onConnected}:{onConnected?:()=>void}) {
   const [code,setCode]=useState(''),[pair,setPair]=useState<{name:string;orgId:string;orgName:string}|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[connected,setConnected]=useState(false);
@@ -24,8 +25,8 @@ export default function PairDisplay({onConnected}:{onConnected?:()=>void}) {
     {connected?<div className="alert alert-success mb-0" role="status"><strong>TV connected.</strong> Return to your display to see the event feed. <Link href="/devices/integrations/firetv">View Fire TV connections →</Link></div>:<>
       <form className="vstack gap-3" onSubmit={e=>{e.preventDefault();void request();}}>
         <label htmlFor="pair-display-code" className="form-label mb-0">Code shown on your TV</label>
-        <input id="pair-display-code" className="form-control form-control-lg font-monospace" placeholder="XXXX-XXXX" autoComplete="off" maxLength={11} required disabled={busy} value={code} onChange={e=>{setCode(e.target.value.toUpperCase());setPair(null);setError('');}}/>
-        <button className="btn btn-primary" disabled={busy||!code.trim()}>{busy?'Please wait…':'Check code'}</button>
+        <input id="pair-display-code" className="form-control form-control-lg font-monospace" placeholder="XXXXX-XXXXX" autoComplete="off" maxLength={32} autoCapitalize="characters" spellCheck={false} aria-describedby="tv-code-help" required disabled={busy} value={code} onChange={e=>{setCode(formatTvCode(e.target.value));setPair(null);setError('');}}/>
+        <small id="tv-code-help" className="text-muted">Type or paste the code with or without the dash. We format it to match your TV.</small><button className="btn btn-primary" disabled={busy||!completeTvCode(code)}>{busy?'Please wait…':'Check code'}</button>
       </form>
       {pair&&<section className="border rounded-3 p-3 vstack gap-3"><h3 className="h5 mb-0">Connect {pair.name}?</h3><p className="mb-0">Location: <strong>{pair.orgName}</strong></p><p className="mb-0">Read-only access to this location’s event summaries and previews for 24 hours. This display cannot change devices or alarms. Approve only a code on your own screen.</p><button className="btn btn-primary" disabled={busy} onClick={()=>void request(true)}>{busy?'Connecting…':'Connect this TV'}</button></section>}
     </>}

@@ -85,6 +85,8 @@ SmartDetector has web, API, and worker images. AutoVision runs as a separate ser
 
 ## Local Development
 
+For the complete Ubuntu backend + React preview + native Vega simulator setup, see [Ubuntu TV development](docs/ubuntu-tv-development.md).
+
 Prerequisite: Docker with Compose. Use the wrapper to create the shared local network before starting the containers:
 
 ```bash

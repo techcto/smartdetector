@@ -19,7 +19,7 @@ try {
 } finally {
   const connections = (await (await call('/api/v1/providers',null,cookie)).json()).connections;
   for (const c of connections.filter(c=>c.providerKey==='firetv'&&c.name==='Synthetic HTTP pairing test')) {
-    assert.equal((await fetch(base+'/api/v1/providers',{method:'DELETE',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({id:c.id})})).status,200);
+    assert.equal((await fetch(base+'/api/v1/providers',{method:'DELETE',headers:{Cookie:cookie,Origin:base,'Content-Type':'application/json'},body:JSON.stringify({id:c.id})})).status,200);
   }
 }
 assert.equal((await feed()).status,401);

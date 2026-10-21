@@ -78,3 +78,45 @@ test('a removed Playground camera returns only on an explicit token reconnect, w
   assert.equal(await store.incident(org.id,'before-removal'),null);
  }finally{for(const k of Object.keys(env))delete process.env[k];}
 });
+ import {POST as analyzePlayground} from '../src/app/api/local/ring-playground/analyze/route';
+import {signToken} from '../src/lib/session';
+test('Playground frames use real analysis and persistence; reject wrong camera, origin, expiry and production',async()=>{
+ Object.assign(process.env,env);process.env.SMARTDETECTOR_SESSION_SECRET='synthetic-playground-analysis-secret-long-enough';
+ const originalFetch=globalThis.fetch,oldKey=process.env.SMARTDETECTOR_AUTOVISION_API_KEY;
+ process.env.SMARTDETECTOR_AUTOVISION_API_KEY='synthetic-analysis-key';
+ try{
+  const org=await store.createOrganization({name:'Playground analysis',ownerId:'root',orgType:'personal'}),saved=await savePlaygroundToken(org.id,token(Math.floor(Date.now()/1000)+1800),fakeRing);await syncRingCameras(org.id,saved.id,fakeRing);
+  const device=(await store.nodes(org.id))[0],secret=process.env.SMARTDETECTOR_SESSION_SECRET;
+  const cookie=sessionCookie+'='+await createSession({id:'root',username:'root',role:'root',orgId:org.id,expiresAt:Date.now()+60000},secret);
+  const ticket=await signToken({orgId:org.id,deviceId:device.serverId,purpose:'ring-live',expiresAt:Date.now()+60000},secret);
+  const frames=Array.from({length:8},(_,i)=>i*1000).map(at_ms=>({image:Buffer.from([255,216,255,1,2,3]).toString('base64'),at_ms}));
+  let calls=0;globalThis.fetch=async(input,init)=>{calls++;assert.ok(String(input).endsWith('/api/v1/analyze'));assert.deepEqual(JSON.parse(String(init?.body)).frames,frames);return Response.json({job_id:'actual-service-response',observations:[],classification:{status:'not_requested'}});};
+  const request=(body:unknown,origin='http://localhost')=>new NextRequest('http://localhost/api/local/ring-playground/analyze',{method:'POST',headers:{host:'localhost',origin,cookie},body:JSON.stringify(body)});
+  assert.equal((await analyzePlayground(request({deviceId:device.serverId,ticket,frames},'https://foreign.example'))).status,404);
+  assert.equal((await analyzePlayground(request({deviceId:'other',ticket,frames}))).status,403);
+  assert.equal((await analyzePlayground(request({deviceId:device.serverId,ticket:'invalid',frames}))).status,403);
+  const expired=await signToken({orgId:org.id,deviceId:device.serverId,purpose:'ring-live',expiresAt:Date.now()-1},secret);
+  assert.equal((await analyzePlayground(request({deviceId:device.serverId,ticket:expired,frames}))).status,403);
+  const foreign=await signToken({orgId:'another-workspace',deviceId:device.serverId,purpose:'ring-live',expiresAt:Date.now()+60000},secret);
+  assert.equal((await analyzePlayground(request({deviceId:device.serverId,ticket:foreign,frames}))).status,403);
+  assert.equal((await analyzePlayground(request({deviceId:device.serverId,ticket,frames:[]}))).status,400);
+  const result=await analyzePlayground(request({deviceId:device.serverId,ticket,frames}));assert.equal(result.status,200);const value=await result.json();
+  const incident=await store.incident(org.id,value.incidentId);assert.equal(incident?.serverId,device.serverId);assert.equal(incident?.payload.source,'ring-playground');assert.equal(calls,1);
+  globalThis.fetch=async()=>new Response(null,{status:503});assert.equal((await analyzePlayground(request({deviceId:device.serverId,ticket,frames}))).status,503);
+  delete process.env.SMARTDETECTOR_LOCAL_PLAYGROUND;assert.equal((await analyzePlayground(request({deviceId:device.serverId,ticket,frames}))).status,404);
+ }finally{globalThis.fetch=originalFetch;if(oldKey===undefined)delete process.env.SMARTDETECTOR_AUTOVISION_API_KEY;else process.env.SMARTDETECTOR_AUTOVISION_API_KEY=oldKey;for(const k of Object.keys(env))delete process.env[k];}
+});
+ test('last retained camera image stays available after Playground token expiry without calling Ring',async()=>{
+ Object.assign(process.env,env);process.env.SMARTDETECTOR_SESSION_SECRET='synthetic-playground-preview-secret-long-enough';
+ const originalFetch=globalThis.fetch;
+ try{
+  const org=await store.createOrganization({name:'Preview test',ownerId:'root',orgType:'personal'}),saved=await savePlaygroundToken(org.id,token(Math.floor(Date.now()/1000)+1800),fakeRing);await syncRingCameras(org.id,saved.id,fakeRing);
+  const device=(await store.nodes(org.id))[0],at=new Date().toISOString(),image='data:image/jpeg;base64,/9j/AQID';
+  await store.putIncident({tenantId:org.id,serverId:device.serverId,agentId:'ring-playground',incidentId:'preview-event',state:'review',startedAt:at,updatedAt:at,payload:{kind:'vision-review',thumbnail:image}});
+  const {removePlaygroundToken}=await import('../src/lib/ring-playground');await removePlaygroundToken(org.id,saved.id);
+  globalThis.fetch=async()=>{throw Error('Preview must not request Ring media');};
+  const cookie=sessionCookie+'='+await createSession({id:'root',username:'root',role:'root',orgId:org.id,expiresAt:Date.now()+60000},process.env.SMARTDETECTOR_SESSION_SECRET);
+  const response=await media(new NextRequest('http://localhost/api/v1/devices/'+device.serverId+'/media',{method:'POST',headers:{host:'localhost',origin:'http://localhost',cookie},body:JSON.stringify({action:'preview'})}),{params:Promise.resolve({id:device.serverId})});
+  assert.equal(response.status,200);assert.equal((await response.json()).image,image);
+ }finally{globalThis.fetch=originalFetch;for(const k of Object.keys(env))delete process.env[k];}
+});

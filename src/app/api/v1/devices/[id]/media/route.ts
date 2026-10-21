@@ -3,6 +3,7 @@ import {operator} from '@/lib/operator';
 import {store} from '@/lib/store';
 import {ringAccess} from '@/lib/ring-link';
 import {RingClient} from '@/lib/ring';
+import {eventView} from '@/lib/event-view';
 import {requestOrigin,signToken,verifyToken} from '@/lib/session';
 import {readBody} from '@/lib/read-body';
 import {authorizeTv} from '@/lib/tv';
@@ -15,7 +16,12 @@ export async function POST(req:NextRequest,{params}:{params:Promise<{id:string}>
  const {id}=await params;const d=await store.node(s.orgId,id);
  if(!d||d.providerKey!=='ring'||!d.connectionId||!d.externalId)return NextResponse.json({error:'Camera not found in this location'},{status:404});
  try{
-  const v=JSON.parse(await readBody(req,131072)),config=await ringAccess(s.orgId,d.connectionId),base='https://api.amazonvision.com/v1/devices/'+encodeURIComponent(d.externalId)+'/media/streaming/whep/sessions',secret=process.env.SMARTDETECTOR_SESSION_SECRET??'';
+  const v=JSON.parse(await readBody(req,131072));
+  if(v.action==='preview'){
+   const latest=(await store.incidents(s.orgId)).filter(e=>e.serverId===id).sort((a,b)=>b.startedAt.localeCompare(a.startedAt)).find(e=>eventView(e.payload).preview);
+   return NextResponse.json({image:latest?eventView(latest.payload).preview:null,observedAt:latest?.startedAt??null,label:'Last retained event image; not live'},{headers:{'Cache-Control':'no-store'}});
+  }
+  const config=await ringAccess(s.orgId,d.connectionId),base='https://api.amazonvision.com/v1/devices/'+encodeURIComponent(d.externalId)+'/media/streaming/whep/sessions',secret=process.env.SMARTDETECTOR_SESSION_SECRET??'';
   if(v.action==='snapshot'){if(tv)return NextResponse.json({error:'Display access is for live viewing only'},{status:403});const image=await new RingClient(config.accessToken).snapshot(d.externalId,Date.now(),undefined,true);return NextResponse.json({image:'data:image/jpeg;base64,'+image,retrievedAt:new Date().toISOString(),label:'Latest available image within 24 hours; not live'},{headers:{'Cache-Control':'no-store'}});}
   if(v.action==='stop'){
    const t=await verifyToken<Ticket>(v.ticket,secret);if(!t||t.purpose!=='ring-live'||t.orgId!==s.orgId||t.deviceId!==id||t.displayId!==tv?.connectionId||!/^[a-zA-Z0-9_.:-]{1,256}$/.test(t.sessionId))return NextResponse.json({error:'Invalid live session'},{status:403});

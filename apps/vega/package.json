@@ -1,1 +1,15 @@
-{"name":"smartdetector-vega","version":"0.1.0","private":true,"license":"AGPL-3.0-or-later","scripts":{"prepare:app":"node scripts/prepare.mjs","build:app":"node scripts/prepare.mjs --build","test":"node --test tests/*.test.mjs"}}
+{
+  "name": "smartdetector-vega",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "prepare:app": "node scripts/prepare.mjs",
+    "build:app": "node scripts/prepare.mjs --build",
+    "test": "node --test tests/*.test.mjs",
+    "dev:sync": "node scripts/sync-dev.mjs"
+  },
+  "dependencies": {
+    "qrcode-generator": "2.0.4"
+  }
+}
