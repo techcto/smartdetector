@@ -543,8 +543,8 @@ export function App() {
           <View style={s.panel}>
             <Text style={s.heading}>Console settings</Text>
             <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/privacy`)}>Privacy policy</Action>
-            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/settings/data-deletion`)}>Delete saved data</Action>
-            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/settings/account-deletion`)}>Request account deletion</Action>
+            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/privacy#data-deletion`)}>Delete saved data</Action>
+            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/privacy#account-deletion`)}>Request account deletion</Action>
             <Action preferred onPress={() => setSettingsOpen(false)}>Back to console</Action>
             <Text style={s.paragraph}>Disconnect only when you want to pair this console again. Normal browsing does not require disconnecting.</Text>
             <Action onPress={() => setDisconnectPrompt(true)}>Disconnect this console…</Action>
