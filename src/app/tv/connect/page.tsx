@@ -4,6 +4,8 @@ import Link from 'next/link';
 import {formatTvCode,completeTvCode} from '@/lib/tv-code';
 export default function ConnectDisplay() {
   const [code,setCode] = useState(''), [pair,setPair] = useState<{name:string;orgId:string;orgName:string}|null>(null), [message,setMessage] = useState(''),[busy,setBusy]=useState(false),[connected,setConnected]=useState(false);
+  // Prefill from the QR link once on mount; the URL is external to React state.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{const value=new URLSearchParams(window.location.search).get('code');if(value&&/^[A-F0-9]{5}-[A-F0-9]{5}$/i.test(value)){setCode(formatTvCode(value));void inspect(formatTvCode(value));}},[]);
   async function inspect(value=code){setBusy(true);setPair(null);setMessage('');setConnected(false);try{const r=await fetch('/api/v1/tv/approve?code='+encodeURIComponent(value),{cache:'no-store'}),v=await r.json();if(!r.ok)throw Error(v.error);setPair(v)}catch(e){setMessage(e instanceof Error?e.message:'Unable to check code')}finally{setBusy(false)}}
   async function approve(){setBusy(true);try{const r=await fetch('/api/v1/tv/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,orgId:pair?.orgId})}),v=await r.json();if(!r.ok)throw Error(v.error);setMessage('Display connected. Return to your TV.');setConnected(true);setPair(null);setCode('')}catch(e){setMessage(e instanceof Error?e.message:'Unable to approve display')}finally{setBusy(false)}}

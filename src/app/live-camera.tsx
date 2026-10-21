@@ -1,5 +1,10 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
+// Waits up to 12s for the live stream to play; called from the analyze action, never during render.
+async function waitForPlayback(video:{current:HTMLVideoElement|null},current:()=>boolean){
+ const deadline=Date.now()+12000;
+ while(Date.now()<deadline){const v=video.current;if(!current())throw Error('Sampling cancelled');if(v&&v.readyState>=2&&v.videoWidth&&!v.paused)return;await new Promise(r=>setTimeout(r,100));}
+}
 export default function LiveCamera({id,token}:{id:string;token?:string}){
  const video=useRef<HTMLVideoElement>(null),peer=useRef<RTCPeerConnection|null>(null),ticket=useRef(''),timer=useRef<ReturnType<typeof setTimeout>|null>(null),[message,setMessage]=useState('Select Start live view to connect. Video only; audio is off.'),[busy,setBusy]=useState(false),[active,setActive]=useState(false);
  const [playground,setPlayground]=useState(false),[analyzing,setAnalyzing]=useState(false),[analysisMessage,setAnalysisMessage]=useState(''),[poster,setPoster]=useState('');
@@ -13,8 +18,7 @@ export default function LiveCamera({id,token}:{id:string;token?:string}){
   try{
    if(!await start())throw Error('Unable to connect. Check the Playground token and try again.');
    session=ticket.current;pc=peer.current;
-   const deadline=Date.now()+12000;
-   while(Date.now()<deadline){const v=video.current;if(!mounted.current||peer.current!==pc||ticket.current!==session)throw Error('Sampling cancelled');if(v&&v.readyState>=2&&v.videoWidth&&!v.paused)break;await new Promise(r=>setTimeout(r,100));}
+   await waitForPlayback(video,()=>mounted.current&&peer.current===pc&&ticket.current===session);
    const frames=[];
    for(let i=0;i<8;i++){
     if(i)await new Promise(resolve=>setTimeout(resolve,1000));
