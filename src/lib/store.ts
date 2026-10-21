@@ -1,11 +1,20 @@
 import{memoryStore}from'./memory-store';
 import{dynamoStore}from'./dynamo-store';
 import {DAY_MS,imageRetention,evidenceExpiry,evidenceVisible} from './image-retention';
-import type {IncidentRecord,Subscription} from './model';
+import type {IncidentRecord,Node,Subscription} from './model';
 import {playgroundEnabled,playgroundRecord,removePlaygroundToken} from './ring-playground';
 const raw=process.env.SMARTDETECTOR_TABLE?dynamoStore:memoryStore;
 async function policy(org:string){return imageRetention(await raw.settings(org),await raw.subscriptions(org),await raw.products());}
+// TV displays heartbeat on every feed poll (5 s). One that stopped polling is closed, unpaired or expired, not healthy.
+export function displayStatus<T extends Node>(node:T,staleSeconds:number,now=Date.now()):T{
+ if(node.providerKey!=='firetv'||node.status!=='healthy')return node;
+ const seen=Date.parse(node.lastHeartbeat);
+ return Number.isFinite(seen)&&now-seen<=staleSeconds*1000?node:{...node,status:'offline'};
+}
+async function staleSeconds(org:string){const value=(await raw.settings(org)).detection.heartbeatStaleSeconds;return Number.isFinite(value)&&value>0?value:180;}
 export const store={...raw,
+ async node(org:string,id:string){const row=await raw.node(org,id);return row?.providerKey==='firetv'&&row.status==='healthy'?displayStatus(row,await staleSeconds(org)):row;},
+ async nodes(org:string){const rows=await raw.nodes(org);if(!rows.some(n=>n.providerKey==='firetv'&&n.status==='healthy'))return rows;const stale=await staleSeconds(org);return rows.map(n=>displayStatus(n,stale));},
  async expirePlayground(org:string){
   if(!playgroundEnabled())return;
   const record=await playgroundRecord(org);
