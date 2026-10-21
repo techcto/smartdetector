@@ -14,7 +14,10 @@ export const store={...raw,
  async imageRetention(org:string){return policy(org);},
  async putIncident(row:IncidentRecord){
   const {days}=await policy(row.tenantId),existing=await raw.incident(row.tenantId,row.incidentId);
-  const ttl=Math.floor(Math.min(Math.min(Date.parse(row.startedAt),Date.now())+days*DAY_MS,row.ttl===undefined?Infinity:row.ttl*1000,existing?evidenceExpiry(existing,days):Infinity)/1000);
+  // Updating a legacy row (no deadline) keeps it on the grace path; stamping a ttl would drop that protection.
+  if(existing&&existing.ttl===undefined&&row.ttl===undefined){if(!evidenceVisible(existing,days))throw Error('Evidence retention expired');return raw.putIncident(row);}
+  // Updates keep the stored deadline; new rows start from the workspace period.
+  const ttl=Math.floor(Math.min(existing?evidenceExpiry(existing,days):Math.min(Date.parse(row.startedAt),Date.now())+days*DAY_MS,row.ttl===undefined?Infinity:row.ttl*1000)/1000);
   if(!Number.isFinite(ttl)||ttl*1000<=Date.now())throw Error('Evidence retention expired');
   await raw.putIncident({...row,ttl});
  },
@@ -25,11 +28,8 @@ export const store={...raw,
  async expireEvidence(org:string){await this.expirePlayground(org);return raw.expireEvidence(org,(await policy(org)).days);},
  async putSubscription(row:Subscription){
   await raw.putSubscription(row);
-  if(!(await policy(row.orgId)).paid){
-   const settings=await raw.settings(row.orgId);
-   await raw.putSettings(row.orgId,{...settings,privacy:{...settings.privacy,imageRetentionDays:1},updatedAt:new Date().toISOString()});
-   await raw.expireEvidence(row.orgId,1);
-  }
+  // Keep the saved choice so reactivation restores it; unpaid reads already fall back to one day.
+  if(!(await policy(row.orgId)).paid)await raw.expireEvidence(row.orgId,1);
  },
 };
 
