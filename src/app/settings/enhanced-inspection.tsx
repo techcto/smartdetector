@@ -1,0 +1,9 @@
+'use client';
+import {useEffect,useState} from 'react';
+export default function EnhancedInspection(){
+ const [enabled,setEnabled]=useState<boolean|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ useEffect(()=>{const c=new AbortController();fetch('/api/v1/privacy/inspection',{signal:c.signal,cache:'no-store'}).then(async r=>{if(r.ok)setEnabled((await r.json()).enabled);}).catch(()=>{});return()=>c.abort();},[]);
+ async function save(next:boolean){setBusy(true);setMessage('');try{const r=await fetch('/api/v1/privacy/inspection',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:next})}),v=await r.json();if(!r.ok)throw Error(v.error);setEnabled(v.enabled);setMessage(v.enabled?'Enhanced inspection on for new camera events.':'Enhanced inspection off. New events use standard analysis.');}catch(e){setMessage(e instanceof Error?e.message:'Unable to save');}finally{setBusy(false);}}
+ if(enabled===null)return null;
+ return <section className="card g-card"><h2>Enhanced inspection</h2><p>When on, AutoVision may take up to two follow-up looks at a camera event, such as zooming into a detected person, animal or package, brightening a dark frame, or asking AI to reassess the scene, and flags events that deserve review.</p><p className="small text-muted">Off by default. Follow-up looks use additional AutoVision image credits, and cropped or brightened copies of sampled frames may be sent to AWS Bedrock. Applies to new camera events only.</p><div className="form-check form-switch"><input className="form-check-input" type="checkbox" role="switch" id="enhanced-inspection" checked={enabled} disabled={busy} onChange={e=>void save(e.target.checked)}/><label className="form-check-label" htmlFor="enhanced-inspection">Use enhanced inspection for camera events</label></div>{message&&<p className="mt-3 mb-0" role="status">{message}</p>}</section>;
+}

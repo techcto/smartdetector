@@ -10,6 +10,6 @@ export async function GET(req: NextRequest) {
   const [incidents, devices] = await Promise.all([store.incidents(auth.orgId), store.nodes(auth.orgId)]);
   return NextResponse.json({updatedAt: new Date().toISOString(), devices: devices.filter(d=>d.providerKey!=='firetv'&&d.platform!=='firetv'&&!d.serverId.startsWith('firetv-')).map(d => ({id: d.serverId, name: d.displayName, status: d.status, liveView:d.providerKey==='ring'&&!!d.connectionId&&!!d.externalId})), incidents: incidents.sort((a,b)=>b.startedAt.localeCompare(a.startedAt)).slice(0,50).map(i => {
     const p=eventView(i.payload);
-    return {id: i.incidentId, deviceId: i.serverId, state: i.state, at: i.startedAt, source: p.source || i.agentId, thumbnail: p.preview, frames:p.evidenceFrames, summary: p.aiSummary || p.assessment || "Open SmartDetector for observation details", observations: p.observations,notify:p.personNotify};
+    return {id: i.incidentId, deviceId: i.serverId, state: i.state, at: i.startedAt, source: p.source || i.agentId, thumbnail: p.preview, frames:p.evidenceFrames, summary: p.aiSummary || p.assessment || "Open SmartDetector for observation details", observations: p.observations,notify:p.personNotify,review:p.inspection?.review_recommended===true};
   })}, {headers: {"Cache-Control": "no-store"}});
 }

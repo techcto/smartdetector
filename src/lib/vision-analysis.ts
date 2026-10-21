@@ -10,6 +10,7 @@ import {enrolledPeople,saveMatchedActivity} from './people';
 import {measureFaces} from './face-service';
 import {recognizeEvent} from './face-matching';
 import {deliverIncident} from './event-delivery';
+import {inspectionSummary} from './event-view';
 
 export type VisionFrame = {image: string; at_ms: number};
 export function evidenceFrames(frames: VisionFrame[],analysis?:unknown) {
@@ -30,7 +31,7 @@ export function evidenceFrames(frames: VisionFrame[],analysis?:unknown) {
     return [];
   });
 }
-export type VisionResult = {job_id?: string; thumbnail?: string; classification?: {status: string; summary?: string}; observations: {type: string; value: number; detected: boolean; advisory?: boolean}[]; frames?: unknown[]; engine_version?: string};
+export type VisionResult = {job_id?: string; thumbnail?: string; classification?: {status: string; summary?: string}; observations: {type: string; value: number; detected: boolean; advisory?: boolean}[]; frames?: unknown[]; engine_version?: string; inspection?: unknown; privacy?: {sent_to_bedrock?: boolean}};
 export async function analyzeFrames(orgId: string, deviceId: string, frames: VisionFrame[], classify: boolean, source = "manual", requestId?: string, fetcher: typeof fetch = fetch,observedAt=Date.now()) {
   if(observedAt<=await historyCutoff(orgId))throw Error('History was purged');
   await assertDeviceHistory(orgId,deviceId,new Date(observedAt).toISOString());
@@ -40,9 +41,11 @@ export async function analyzeFrames(orgId: string, deviceId: string, frames: Vis
     if (!f || typeof f.image !== "string" || f.image.length > 1500000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(f.image) || !Number.isFinite(f.at_ms) || f.at_ms <= previous || f.at_ms > 30000) throw new Error("Invalid sampled frame");
     previous = f.at_ms;
   }
+  // Workspace opt-in; an explicit false also overrides AutoVision's own account default.
+  const enhanced = classify && (await store.settings(orgId)).privacy.enhancedInspection === true;
   const key = await connection();
   if (!key) throw new Error("AutoVision system service is not configured");
-  const r = await fetcher((await visionConfig()).url + "/api/v1/analyze", {method: "POST", headers: {"Content-Type": "application/json", Authorization: "Bearer " + key}, body: JSON.stringify({frames, classify}), signal: AbortSignal.timeout(85000), redirect: "error"});
+  const r = await fetcher((await visionConfig()).url + "/api/v1/analyze", {method: "POST", headers: {"Content-Type": "application/json", Authorization: "Bearer " + key}, body: JSON.stringify({frames, classify, enhanced}), signal: AbortSignal.timeout(85000), redirect: "error"});
   if (!r.ok) throw new Error("AutoVision analysis failed (HTTP " + r.status + ")");
   const result = await r.json() as VisionResult;
   if (!Array.isArray(result.observations)) throw new Error("Invalid AutoVision result");
@@ -61,8 +64,9 @@ export async function persistVisionAnalysis(orgId:string,deviceId:string,frames:
   try{if(!replay&&(await enrolledPeople(orgId)).length)recognition=await recognizeEvent(orgId,await measureFaces(frames,fetcher),detections);}catch{/* Face service unavailable: preserve normal event behavior. */}
   await assertDeviceHistory(orgId,deviceId,at);
   const personNotify=recognition?.notify!==false||result.observations.some(o=>o.detected&&!['person','motion'].includes(o.type));
+  const inspection=inspectionSummary(result.inspection);
   const classification=replay?{status:'recorded-replay',summary:'Recorded sample replay — not live Ring footage or new AI analysis. '+(result.classification?.summary??'')}:result.classification;
-  await store.putIncident({tenantId: orgId, agentId: source, serverId: deviceId, incidentId, state: "review", startedAt: at, updatedAt: at, payload: {personNotify,kind: "vision-review", source, ...(replay?{replay}:{}),autoVisionJobId: result.job_id, thumbnail: evidence[0]?.preview, evidenceFrames:evidence, detectionFrames:detections, detectionSchemaVersion:1, observations: result.observations, classification, engineVersion: result.engine_version, advisory: true, assessment: "Visual observation for human review; not an intruder or emergency determination."}});
+  await store.putIncident({tenantId: orgId, agentId: source, serverId: deviceId, incidentId, state: "review", startedAt: at, updatedAt: at, payload: {personNotify,kind: "vision-review", source, ...(replay?{replay}:{}),autoVisionJobId: result.job_id, thumbnail: evidence[0]?.preview, evidenceFrames:evidence, detectionFrames:detections, detectionSchemaVersion:1, observations: result.observations, classification, ...(inspection&&inspection.status!=='not_requested'?{inspection}:{}), ...(typeof result.privacy?.sent_to_bedrock==='boolean'?{sentToBedrock:result.privacy.sent_to_bedrock}:{}), engineVersion: result.engine_version, advisory: true, assessment: "Visual observation for human review; not an intruder or emergency determination."}});
   if(recognition)await saveMatchedActivity(orgId,incidentId,recognition.sightings);
   if(!replay&&result.observations.some(o=>o.type==='person'&&o.detected)&&personNotify)await deliverIncident(orgId,incidentId);
   return {incidentId, analysis: result};

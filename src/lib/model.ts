@@ -14,7 +14,7 @@ export type Settings={
   detection:{warningPercent:number;criticalPercent:number;emergencyPercent:number;trafficMultiplier:number;distributedCrawlerCorrelation:boolean;applicationFailureDetection:boolean;heartbeatStaleSeconds:number};
   notifications:{whatsappEnabled:boolean;whatsappSenderId:string;emailEnabled:boolean;recipients:string};
   response:{allowRemoteRequests:boolean;dryRun:boolean;defaultTtlSeconds:number;maxTtlSeconds:number};
-  privacy:{evidenceRetentionDays:number;imageRetentionDays?:number;maxEvidenceLines:number;removeQueryValues:boolean;fingerprintUserAgents:boolean};
+  privacy:{evidenceRetentionDays:number;imageRetentionDays?:number;enhancedInspection?:boolean;maxEvidenceLines:number;removeQueryValues:boolean;fingerprintUserAgents:boolean};
   updatedAt:string;
 };
 export type Product={id:string;name:string;description:string;stripePriceId:string;monthlyPrice:number;serverLimit:number;active:boolean};
