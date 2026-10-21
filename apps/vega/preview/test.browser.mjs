@@ -35,6 +35,30 @@ try {
     await page.getByRole("button", { name: "Get pairing code" }).click();
     await page.getByRole("button", { name: "Add device", exact: true }).waitFor({ timeout: 15000 });
     await page.getByRole("button", { name: "Add Ring connection" }).waitFor();
+    // Vega has no browser: external pages are shown as addresses. Focus moves to Back and returns to the opener.
+    const focusedOn = (label) => page.waitForFunction((l) => document.activeElement?.textContent?.trim() === l, label, { timeout: 5000 });
+    await page.getByRole("button", { name: "Add device", exact: true }).click();
+    await page.getByText("http://localhost:8082/devices", { exact: true }).waitFor();
+    await focusedOn("← Back");
+    assert.equal(page.context().pages().length, 1);
+    await page.keyboard.press("Enter");
+    await focusedOn("Add device");
+    await page.getByRole("button", { name: "Add Ring connection" }).click();
+    await page.getByText("http://localhost:8082/devices/integrations/ring", { exact: true }).waitFor();
+    await focusedOn("← Back");
+    await page.keyboard.press("Escape");
+    await focusedOn("Add Ring connection");
+    await page.getByRole("button", { name: "Console settings" }).click();
+    await focusedOn("Back to console");
+    for (const [label, url] of [["Privacy policy", "http://localhost:8082/privacy"], ["Delete saved data", "http://localhost:8082/privacy#data-deletion"], ["Request account deletion", "http://localhost:8082/privacy#account-deletion"]]) {
+      await page.getByRole("button", { name: label, exact: true }).click();
+      await page.getByText(url, { exact: true }).waitFor();
+      await focusedOn("← Back");
+      await page.keyboard.press(label === "Delete saved data" ? "Escape" : "Enter");
+      await focusedOn("Back to console");
+    }
+    await page.keyboard.press("Escape");
+    await focusedOn("Console settings");
     await page.getByRole("button", { name: "TV keyboard / voice" }).click();
     assert.equal(await page.getByRole("textbox", { name: "Search saved events" }).evaluate((el) => el === document.activeElement), true);
     await page.getByRole("button", { name: "Use browser mic" }).click();

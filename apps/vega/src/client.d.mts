@@ -25,6 +25,19 @@ type Device = {
 };
 export function serviceOrigin(value: string): string;
 export function safePreview(value: unknown): string | undefined;
+export type ExternalPage =
+  | "pairing"
+  | "privacy"
+  | "dataDeletion"
+  | "accountDeletion"
+  | "devices"
+  | "ring"
+  | "liveView";
+export function externalLink(
+  origin: string,
+  page: ExternalPage,
+  deviceId?: string,
+): { title: string; url: string; detail: string };
 export function displayDevices<T extends Device>(devices: T[]): T[];
 export function eventsForDevice<T extends { deviceId: string }>(
   events: T[],

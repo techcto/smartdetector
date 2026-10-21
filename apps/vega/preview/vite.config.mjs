@@ -8,6 +8,7 @@ export default defineConfig({
       { find: /^\.\/config$/, replacement: path.join(here, "config.ts") },
       { find: /^\.\/brand$/, replacement: path.join(here, "brand.ts") },
       { find: /^\.\/voice$/, replacement: path.join(here, "voice.ts") },
+      { find: /^\.\/focus$/, replacement: path.join(here, "focus.ts") },
       { find: /^react-native$/, replacement: path.join(here, "native-web.ts") },
       { find: /^react$/, replacement: path.join(here, "node_modules/react") },
       { find: /^react\//, replacement: path.join(here, "node_modules/react/") },

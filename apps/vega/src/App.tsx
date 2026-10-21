@@ -9,7 +9,6 @@ import {
   AppState,
   BackHandler,
   Image,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,11 +22,14 @@ import {
   createClient,
   displayDevices,
   eventsForDevice,
+  externalLink,
   newAlert,
   safePreview,
+  type ExternalPage,
 } from "./client.mjs";
 import { SERVICE_ORIGIN } from "./config";
 import { browserVoiceAvailable, startBrowserVoice } from "./voice";
+import { focusView } from "./focus";
 import { brandMark } from "./brand";
 type Box = {
   label: string;
@@ -59,15 +61,21 @@ function Action({
   onPress,
   disabled = false,
   preferred = false,
+  focusRef,
+  onLayout,
 }: {
   children: React.ReactNode;
   onPress: () => void;
   disabled?: boolean;
   preferred?: boolean;
+  focusRef?: React.Ref<View>;
+  onLayout?: () => void;
 }) {
   const [focused, setFocused] = useState(false);
   return (
     <Pressable
+      ref={focusRef}
+      onLayout={onLayout}
       accessibilityRole="button"
       disabled={disabled}
       hasTVPreferredFocus={preferred}
@@ -166,7 +174,8 @@ function Evidence({
   );
 }
 export function App() {
-  const searchInput = useRef<TextInput>(null);
+  const searchInput = useRef<TextInput>(null),
+    scroller = useRef<ScrollView>(null);
   const stopVoice = useRef<(() => void) | null>(null);
   const [voiceNote, setVoiceNote] = useState("");
   useEffect(() => {
@@ -195,13 +204,43 @@ export function App() {
     [notice, setNotice] = useState<Event | null>(null),
     [alerts, setAlerts] = useState(true),
     [settingsOpen, setSettingsOpen] = useState(false),
-    [disconnectPrompt, setDisconnectPrompt] = useState(false);
+    [disconnectPrompt, setDisconnectPrompt] = useState(false),
+    [link, setLink] = useState<ReturnType<typeof externalLink> | null>(null);
   const seen = useRef<Set<string> | null>(null),
     epoch = useRef(0),
     controllers = useRef(new Set<AbortController>()),
     active = useRef(AppState.currentState === "active"),
     allowAlerts = useRef(alerts);
   allowAlerts.current = alerts;
+  // Vega keeps no focus when the focused control unmounts with its screen, so each
+  // screen change names the control to focus. FocusManager moves it once that control's
+  // native view exists: immediately if it is already laid out, otherwise on its layout.
+  const focusNext = useRef<React.RefObject<View | null> | null>(null),
+    returnTo = useRef<React.RefObject<View | null> | null>(null),
+    linkBack = useRef<View>(null),
+    settingsBack = useRef<View>(null),
+    settingsButton = useRef<View>(null),
+    pairingButton = useRef<View>(null),
+    liveButton = useRef<View>(null),
+    devicesButton = useRef<View>(null),
+    ringButton = useRef<View>(null),
+    laidOut = useRef(new WeakSet<View>());
+  useEffect(() => {
+    const target = focusNext.current?.current;
+    if (!target || !laidOut.current.has(target)) return;
+    focusNext.current = null;
+    focusView(target);
+  });
+  function land(ref: React.RefObject<View | null>) {
+    return () => {
+      const view = ref.current;
+      if (!view) return;
+      laidOut.current.add(view);
+      if (focusNext.current !== ref) return;
+      focusNext.current = null;
+      focusView(view);
+    };
+  }
   function controller() {
     const c = new AbortController();
     controllers.current.add(c);
@@ -224,6 +263,7 @@ export function App() {
     setNotice(null);
     setSettingsOpen(false);
     setDisconnectPrompt(false);
+    setLink(null);
     setBusy(false);
     seen.current = null;
   }, []);
@@ -242,11 +282,18 @@ export function App() {
     };
   }, []);
   const back = useCallback(() => {
+    if (link) {
+      focusNext.current = returnTo.current;
+      returnTo.current = null;
+      setLink(null);
+      return true;
+    }
     if (disconnectPrompt) {
       setDisconnectPrompt(false);
       return true;
     }
     if (settingsOpen) {
+      focusNext.current = settingsButton;
       setSettingsOpen(false);
       return true;
     }
@@ -266,7 +313,7 @@ export function App() {
       return true;
     }
     return false;
-  }, [selectedId, deviceId, submitted, disconnectPrompt, settingsOpen]);
+  }, [link, selectedId, deviceId, submitted, disconnectPrompt, settingsOpen]);
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", back);
     return () => sub.remove();
@@ -422,6 +469,13 @@ export function App() {
       deviceId,
     ),
     selected = events.find((i) => i.id === selectedId);
+  // Vega cannot open a browser; show the address so it can be opened on a phone or computer.
+  function show(page: ExternalPage, from: React.RefObject<View | null>, id?: string) {
+    returnTo.current = settingsOpen ? settingsBack : from;
+    focusNext.current = linkBack;
+    setLink(externalLink(SERVICE_ORIGIN, page, id));
+    scroller.current?.scrollTo({ y: 0, animated: false });
+  }
   function open(event: Event) {
     setSelectedId(event.id);
     setFrame(0);
@@ -452,6 +506,7 @@ export function App() {
                 setQuery("");
                 setSettingsOpen(false);
                 setDisconnectPrompt(false);
+                setLink(null);
               }}
             >
               Security center
@@ -464,7 +519,14 @@ export function App() {
             >
               Alerts {alerts ? "on" : "off"}
             </Action>
-            <Action onPress={() => setSettingsOpen(true)}>
+            <Action
+              focusRef={settingsButton} onLayout={land(settingsButton)}
+              onPress={() => {
+                focusNext.current = settingsBack;
+                setLink(null);
+                setSettingsOpen(true);
+              }}
+            >
               Console settings
             </Action>
             <Action onPress={() => setRefreshEpoch((n) => n + 1)}>Refresh</Action>
@@ -472,13 +534,24 @@ export function App() {
         )}
       </View>
       <ScrollView
+        ref={scroller}
         contentContainerStyle={[
           s.body,
           mobile && { padding: 16, paddingBottom: 40 },
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        {!token ? (
+        {link ? (
+          <View style={s.panel}>
+            <Text style={s.heading}>{link.title}</Text>
+            <Text style={s.paragraph}>
+              This TV can't open web pages. On your phone or computer, go to:
+            </Text>
+            <Text selectable style={[s.url, mobile && { fontSize: 22 }]}>{link.url}</Text>
+            <Text style={s.paragraph}>{link.detail}</Text>
+            <Action preferred focusRef={linkBack} onLayout={land(linkBack)} onPress={() => void back()}>← Back</Action>
+          </View>
+        ) : !token ? (
           <View>
             <Text style={[s.title, mobile && { fontSize: 28 }]}>
               Your devices. One perspective.
@@ -493,7 +566,7 @@ export function App() {
             <Text style={s.paragraph}>
               3. Select the intended location and approve this display.
             </Text>
-            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/tv/connect`)}>
+            <Action focusRef={pairingButton} onLayout={land(pairingButton)} onPress={() => show("pairing", pairingButton)}>
               Open pairing approval
             </Action>
             {pair ? (
@@ -542,10 +615,10 @@ export function App() {
         ) : settingsOpen ? (
           <View style={s.panel}>
             <Text style={s.heading}>Console settings</Text>
-            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/privacy`)}>Privacy policy</Action>
-            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/privacy#data-deletion`)}>Delete saved data</Action>
-            <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/privacy#account-deletion`)}>Request account deletion</Action>
-            <Action preferred onPress={() => setSettingsOpen(false)}>Back to console</Action>
+            <Action onPress={() => show("privacy", settingsBack)}>Privacy policy</Action>
+            <Action onPress={() => show("dataDeletion", settingsBack)}>Delete saved data</Action>
+            <Action onPress={() => show("accountDeletion", settingsBack)}>Request account deletion</Action>
+            <Action preferred focusRef={settingsBack} onLayout={land(settingsBack)} onPress={() => void back()}>Back to console</Action>
             <Text style={s.paragraph}>Disconnect only when you want to pair this console again. Normal browsing does not require disconnecting.</Text>
             <Action onPress={() => setDisconnectPrompt(true)}>Disconnect this console…</Action>
           </View>
@@ -613,7 +686,7 @@ export function App() {
                     <Text style={s.heading}>{events[0]?.summary ?? "Waiting for the first event"}</Text>
                     <Text style={s.muted}>Latest retained evidence · {device.status}</Text>
                     {events[0] && <Action onPress={() => open(events[0])}>Review latest event</Action>}
-                    {device.liveView && <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/devices/${encodeURIComponent(device.id)}`)}>Open camera live view in web console</Action>}
+                    {device.liveView && <Action focusRef={liveButton} onLayout={land(liveButton)} onPress={() => show("liveView", liveButton, device.id)}>Open camera live view in web console</Action>}
                   </View>
                 )}
                 {!deviceId && feed && <Text style={s.paragraph}>{feed.devices.length} connected devices · {feed.incidents.length} recent events</Text>}
@@ -653,7 +726,7 @@ export function App() {
                         <Text style={s.paragraph}>
                           No cameras are connected to this location. Open Devices on your phone or browser, select this same location, and connect your Ring account to discover shared cameras.
                         </Text>
-                        <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/devices`)}>
+                        <Action focusRef={devicesButton} onLayout={land(devicesButton)} onPress={() => show("devices", devicesButton)}>
                           Add device
                         </Action>
                       </View>
@@ -748,7 +821,7 @@ export function App() {
                         ? "Try another search or clear the filters to browse saved activity."
                         : "Connected cameras will appear here with real images as events arrive. Trigger motion or a doorbell press on a shared camera. This console refreshes every five seconds; it does not generate sample events."}
                     </Text>
-                    <Action onPress={() => void Linking.openURL(`${SERVICE_ORIGIN}/devices/integrations/ring`)}>
+                    <Action focusRef={ringButton} onLayout={land(ringButton)} onPress={() => show("ring", ringButton)}>
                       {feed.devices.length ? "Manage camera connection" : "Add Ring connection"}
                     </Action>
                   </View>
@@ -857,6 +930,12 @@ const s = StyleSheet.create({
   buttonText: { fontSize: 18, color: "#005e99", fontWeight: "600" },
   focus: { borderColor: "#007bb9", backgroundColor: "#d9edff" },
   disabled: { opacity: 0.45 },
+  url: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: "#007bb9",
+    marginVertical: 18,
+  },
   code: {
     fontSize: 60,
     fontWeight: "700",
