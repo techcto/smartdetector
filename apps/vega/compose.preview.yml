@@ -10,6 +10,7 @@ services:
       - ./preview/index.html:/app/preview/index.html:ro
       - ./preview/main.tsx:/app/preview/main.tsx:ro
       - ./preview/config.ts:/app/preview/config.ts:ro
+      - ./preview/focus.ts:/app/preview/focus.ts:ro
       - ./preview/vite.config.mjs:/app/preview/vite.config.mjs:ro
     environment:
       SMARTDETECTOR_PREVIEW_API_TARGET: http://smartdetector-web:3000

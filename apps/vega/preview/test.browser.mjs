@@ -161,6 +161,15 @@ try {
       .getByRole("button", { name: "Console settings", exact: true })
       .click();
     await fits("settings", true);
+    const focusedOn = (label) => page.waitForFunction((value) => document.activeElement?.textContent?.trim() === value, label);
+    for (const [label, path] of [["Privacy policy", "/privacy"], ["Delete saved data", "/privacy#data-deletion"], ["Request account deletion", "/privacy#account-deletion"]]) {
+      await page.getByRole("button", { name: label, exact: true }).click();
+      await page.getByText("http://localhost:8082" + path, { exact: true }).waitFor();
+      await focusedOn("← Back");
+      assert.equal(page.context().pages().length, 1);
+      await page.keyboard.press("Escape");
+      await focusedOn("Back to console");
+    }
     await page
       .getByRole("button", { name: "Disconnect this console…" })
       .click();

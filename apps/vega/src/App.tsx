@@ -227,8 +227,7 @@ function Evidence({
   );
 }
 export function App() {
-  const searchInput = useRef<TextInput>(null),
-    scroller = useRef<ScrollView>(null);
+  const searchInput = useRef<TextInput>(null);
   const stopVoice = useRef<(() => void) | null>(null);
   const [voiceNote, setVoiceNote] = useState("");
   useEffect(() => {
