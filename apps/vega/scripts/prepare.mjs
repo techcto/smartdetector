@@ -10,7 +10,10 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { serviceOrigins } from "./service-origins.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
-const target = process.env.SMARTDETECTOR_VEGA_WORK_DIR ? path.resolve(process.env.SMARTDETECTOR_VEGA_WORK_DIR) : path.join(root, ".generated", "project");
+const notifications = process.argv.includes("--notifications-rn72");
+const packageId = notifications ? "com.smartdetector.alerts" : "com.smartdetector.console";
+const rnVersion = notifications ? "0.72" : "0.83";
+const target = process.env.SMARTDETECTOR_VEGA_WORK_DIR ? path.resolve(process.env.SMARTDETECTOR_VEGA_WORK_DIR) : path.join(root, ".generated", notifications ? "notifications-rn72" : "project");
 function run(command, args, cwd = root) {
   const result = spawnSync(command, args, { cwd, stdio: "inherit" });
   if (result.error || result.status !== 0)
@@ -36,11 +39,11 @@ try {
         "project",
         "generate",
         "--template",
-        "helloWorld",
+        notifications ? "helloWorld-rn72" : "helloWorld",
         "--name",
-        "SmartDetectorConsole",
+        notifications ? "SmartDetectorAlerts" : "SmartDetectorConsole",
         "--packageId",
-        "com.smartdetector.console",
+        packageId,
         "--outputDir",
         target,
       ],
@@ -52,16 +55,17 @@ try {
   const pkgPath = path.join(target, "package.json"),
     pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
   if (
-    !manifest.includes("com.smartdetector.console") ||
+    !manifest.includes(`id = "${packageId}"`) ||
     !manifest.includes("[os.version]") ||
     !manifest.includes("com.amazon.category.main") ||
-    !app.name?.startsWith("com.smartdetector.console") ||
-    !String(pkg.dependencies?.["react-native"]).includes("0.83")
+    !app.name?.startsWith(packageId) ||
+    !String(pkg.dependencies?.["react-native"]).includes(rnVersion)
   )
     throw Error(
       "Unexpected SDK template. Review manifest, entry point and React Native version before building.",
     );
   cpSync(path.join(root, "src"), path.join(target, "src"), { recursive: true });
+  if (notifications) cpSync(path.join(root, "notifications-rn72", "notifications.ts"), path.join(target, "src", "notifications.ts"));
   mkdirSync(path.join(target, "assets", "image"), { recursive: true });
   cpSync(
     path.join(root, "assets", "smartdetector-icon.png"),
@@ -75,7 +79,7 @@ try {
     path.join(target, "index.js"),
     "import {AppRegistry} from 'react-native';\nimport App from './src/App';\nimport {name} from './app.json';\nAppRegistry.registerComponent(name,()=>App);\n",
   );
-  app.displayName = "SmartDetector Console";
+  app.displayName = notifications ? "SmartDetector Alerts" : "SmartDetector Console";
   writeFileSync(
     path.join(target, "app.json"),
     JSON.stringify(app, null, 2) + "\n",
@@ -86,6 +90,10 @@ try {
   );
   pkg.version = version;
   pkg.dependencies["qrcode-generator"] = "2.0.4";
+  if (notifications) {
+    pkg.dependencies["@amazon-devices/expo-notifications"] = "2.0.9000000000";
+    pkg.dependencies.expo = "~50.0.0";
+  }
   pkg.overrides = JSON.parse(
     readFileSync(path.join(root, "dependency-overrides.json"), "utf8"),
   );
@@ -105,7 +113,7 @@ try {
         return `version = ${JSON.stringify(version)}\nicon = "@image/smartdetector-icon.png"`;
       }
       if (inPackage && /^title\s*=/.test(line))
-        return 'title = "SmartDetector Console"';
+        return `title = "${app.displayName}"`;
       return line;
     });
   if (!updated)
@@ -113,9 +121,10 @@ try {
   const keyboard = manifest.includes("com.amazon.inputmethod.service")
     ? ""
     : `${manifest.includes("[wants]") ? "" : "\n[wants]"}\n[[wants.service]]\nid = "com.amazon.inputmethod.service"\n`;
-  writeFileSync(manifestPath, lines.join("\n") + keyboard);
+  const privileges = notifications ? ["post", "query"].filter(p => !manifest.includes(`com.amazon.notification.privilege.${p}`)).map(p => `\n[[needs.privilege]]\nid = "com.amazon.notification.privilege.${p}"\n`).join("") : "";
+  writeFileSync(manifestPath, lines.join("\n") + keyboard + privileges);
   if (process.argv.includes("--build")) {
-    const lock = path.join(root, "native-package-lock.json");
+    const lock = path.join(root, notifications ? "notifications-rn72/package-lock.json" : "native-package-lock.json");
     if (existsSync(lock)) cpSync(lock, path.join(target, "package-lock.json"));
     run("npm", [existsSync(lock) ? "ci" : "install"], target);
     run(
@@ -132,7 +141,7 @@ try {
 } catch (error) {
   console.error(error.message);
   console.error(
-    "Install Amazon Vega SDK 0.24 with the React Native 0.83 helloWorld template first. See apps/vega/README.md.",
+    "Install Amazon Vega SDK 0.24 with the selected official template first. See apps/vega/README.md.",
   );
   process.exitCode = 1;
 }

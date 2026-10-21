@@ -19,6 +19,14 @@ The existing template creates only app services, target groups, and hostname rul
 
 ## Contest runtime readiness
 
+### Optional Amazon Device Messaging credentials
+
+Set `AdmCredentialsSecretArn` to an existing same-region Secrets Manager secret encrypted with the AWS-managed Secrets Manager key. Its value must be JSON with nonempty `client_id` and `client_secret` fields from the enabled Amazon Developer security profile. Supply only the ARN to CloudFormation; never credentials in parameters, Git, outputs or native app bundles. Manage prerequisite secret resources through a reviewed CloudFormation stack; populate credentials through an authorized secret-value workflow.
+
+The default is empty and adds no ADM secret access. When configured, ECS injects `SMARTDETECTOR_ADM_CLIENT_ID` and `SMARTDETECTOR_ADM_CLIENT_SECRET` into the worker only. Its execution role can read only the supplied secret ARN. The worker uses Fargate platform 1.4.0 for JSON-key extraction. Web/API containers receive neither value, and the application task role gains no Secrets Manager access. Customer-managed KMS keys require separately reviewed permissions. Private subnets need access to Secrets Manager.
+
+After secret rotation, replace worker tasks through a reviewed stack update: running tasks retain their initially injected values. Enabling these parameters does not implement ADM sending, device registration or background receiving; those integrations and physical-TV playback verification remain pending. See [TV notification prerequisites](../../apps/vega/notifications-rn72/README.md).
+
 AutoVision is a system service, not an organization provider. Set `AutoVisionUrl` and optional `AutoVisionApiKeySecretArn`. The ARN must identify a same-region Secrets Manager secret whose entire string value is the AutoVision API key, encrypted with the AWS-managed Secrets Manager key. ECS injects it into web/API/worker; the execution role receives only `secretsmanager:GetSecretValue` for that ARN. Customer-managed KMS keys need a separately reviewed CloudFormation permission update. No credentials belong in committed parameter files. Review the IAM policy addition and new task revisions before deploying.
 
 This template deploys the web/API/worker platform, not a Fire TV client or Ring adapter. Fire TV device/simulator packaging and actual Ring integration must be implemented and demonstrated separately. See the requirements audit in the root README.

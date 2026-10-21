@@ -8,6 +8,8 @@ Native compilation and packaging have succeeded locally for ARMv7, x86_64 and aa
 
 ## Build and test
 
+For the separate RN 0.72 system-notification experiment and ADM prerequisites, see [notification build](notifications-rn72/README.md). The default RN 0.83 build remains unchanged; background alerts over other apps are not yet verified.
+
 Start with [Ubuntu local development](../../docs/ubuntu-tv-development.md) for the complete backend, browser preview, Vega, QR approval and Fast Refresh setup. Debug automatically uses localhost; Release automatically uses the production site.
 
 1. Install [Amazon Vega SDK 0.24 / Vega Studio](https://developer.amazon.com/docs/vega/0.24/install-vega-sdk). Use its supported Node/toolchain environment and React Native 0.83 template.

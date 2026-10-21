@@ -44,6 +44,39 @@ Record reproducible friction as it occurs. Entries describe observed development
 
 ## Entry format
 
+## System notifications versus RN runtime on October 21 2026
+
+- **Task attempted:** Notify a viewer of a camera event while another TV app plays a movie, then return to SmartDetector.
+- **Steps taken:** Inspect SDK 0.24 release notes and notification/ADM APIs; generate the official helloWorld-rn72 template independently of the working RN 0.83 console; install dependencies and typecheck the shared screens and notification adapter.
+- **Expected result:** A supported system-notification path on the current recommended runtime.
+- **Actual result:** RN 0.83 release notes list expo-notifications as unavailable. RN 0.72 provides a separate implementation; the virtual device cannot validate notifications. A notification display API is distinct from ADM background transport. High notification importance also requires a separate privilege.
+- **Severity:** High for the requested cross-app demonstration; the foreground camera/event console still works.
+- **Workaround used:** Preserve RN 0.83, prepare an isolated RN 0.72 package sharing screens/client, and add a normal-importance local notification adapter. Typechecking passed. ADM configuration, background delivery and overlay/return behavior remain unverified; no cross-app success is claimed.
+- **Actionable suggestion:** Publish a supported RN 0.83 equivalent and an end-to-end Vega example covering ADM, notification privileges, opt-out, authenticated navigation and physical-TV playback. State renderer/privilege restrictions next to the API installation instructions.
+- **Sources:** [Release notes](https://developer.amazon.com/docs/vega/0.24/vega-release-notes), [notifications](https://developer.amazon.com/docs/vega-api/0.24/expo-notifications), [ADM](https://developer.amazon.com/docs/vega-api/0.24/README.amazon-devices_kepler-amazon-device-messaging).
+
+## WSL setup and credential storage on October 21 2026
+
+- **Task attempted:** Build, simulate and install the native console from Ubuntu under WSL.
+- **Steps taken:** Install missing runtime libraries, enable KVM access, launch the virtual device, then authenticate the Vega CLI for the physical TV.
+- **Expected result:** The simulator launches and device authentication is saved securely.
+- **Actual result:** Missing host libraries initially blocked startup. Device authentication then failed while unlocking the default Secret Service collection, although browser authentication completed.
+- **Severity:** Medium; blocked the local setup until host dependencies and keyring configuration were corrected.
+- **Workaround used:** Install the required Ubuntu libraries and configure an unlocked default keyring. A simulator window and subsequent physical-device installation worked in this environment. This is an observation, not a claim of official WSL support. No passwords or tokens belong in the log.
+- **Actionable suggestion:** Add a preflight check for native libraries, KVM and Secret Service default-collection availability before starting browser login. Distinguish host validation from unsupported-platform status.
+
+## Ring Playground live view versus event delivery on October 21 2026
+
+- **Task attempted:** Exercise the production event-analysis pipeline without access to another developer's household cameras.
+- **Steps taken:** Connect a temporary Playground token, discover its device, and invoke Package/Motion live-view scenarios.
+- **Expected result:** A motion scenario also delivers the motion webhook consumed by the app.
+- **Actual result:** The Playground demonstrated a WHEP sample stream; this did not establish delivery of a motion webhook into SmartDetector.
+- **Severity:** Medium; stream testing is possible, but event-driven integration coverage is incomplete.
+- **Workaround used:** Clearly distinguish real-frame Playground analysis from Ring webhook testing. Validate production webhook behavior separately using an authorized real camera; never label a local analysis as a received Ring motion.
+- **Actionable suggestion:** Provide signed development webhook fixtures and a documented scenario linking event delivery, media readiness and stable device identifiers.
+
+## Entry format reference
+
 For each new observation, include the task attempted, exact reproducible steps without credentials, expected and actual result, severity, workaround used, and an actionable suggestion. Link a sanitized issue or test output when useful. Do not include customer footage, account identifiers, tokens, secrets or personal information.
 
 ## Native Vega development friction
@@ -54,6 +87,6 @@ For each new observation, include the task attempted, exact reproducible steps w
 
 - Task: install the SDK for a repeatable Docker release build. Steps: follow Amazon's 0.24 CI example using its SDK version `0.24.9311`. Expected: the documented pinned download installs. Actual: CLI 1.4.4 reports `Version not found: main@0.24.9311`. Severity: medium. Workaround: query `vega sdk list-remote`; pin the listed current `0.24.12112` instead. Suggestion: keep CI examples aligned with retained downloadable releases and document SDK retention. Docker compilation is supported separately from virtual-device testing.
 
-- Resolution: SDK 0.24.12112 now builds validated ARMv7, aarch64 and x86_64 packages in Docker. Client tests, Vega type checking, and synthetic browser tests at desktop/phone sizes pass. Physical device installation remains unverified; the earlier missing-toolchain entry describes the initial state, not the current build capability.
+- Resolution, updated October 21: SDK 0.24.12112 builds ARMv7, aarch64 and x86_64 packages in Docker. The ARMv7 Release console was installed on a physical Vega Fire TV and paired with the production service. This establishes installation and pairing, not Appstore certification or background notification support. The earlier missing-toolchain entry describes the initial state.
 
 - Task: remove native template dependency vulnerabilities. Steps: generate the SDK helloWorld project; run npm audit; pin patched transitive packages, regenerate the lockfile and rebuild. Expected: a clean, compatible dependency tree. Actual: the initial tree had 75 findings; targeted patches reduce the production audit from 42 to 34, with remaining findings propagated from braces and sprintf-js advisories without published patched releases on October 10. Severity: high pending security review; exploitability in the packaged application is not established. Workaround: isolate trusted-source builds, preserve the supported runtime, export audit evidence and visibly warn rather than claim security approval. Suggestion: Amazon should publish a security-maintained template and distinguish build-only dependencies from device runtime dependencies.

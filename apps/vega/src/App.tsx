@@ -31,6 +31,7 @@ import { SERVICE_ORIGIN } from "./config";
 import { browserVoiceAvailable, startBrowserVoice } from "./voice";
 import { focusView } from "./focus";
 import { brandMark } from "./brand";
+import { postSystemAlert } from "./notifications";
 import Pairing from "./PairingScreen";
 type Box = {
   label: string;
@@ -505,7 +506,12 @@ export function App() {
         next.devices = displayDevices(next.devices);
         next.incidents = next.incidents.slice(0, 50);
         const fresh = newAlert(seen.current, next.incidents);
-        if (fresh && allowAlerts.current) setNotice(fresh);
+        if (fresh && allowAlerts.current) {
+          setNotice(fresh);
+          void postSystemAlert(fresh).catch(() => {
+            // Retain the in-app alert if the OS notification service is unavailable.
+          });
+        }
         seen.current = new Set(next.incidents.map((i: Event) => i.id));
         setNotice((n) =>
           n && next.incidents.some((i: Event) => i.id === n.id) ? n : null
@@ -559,6 +565,7 @@ export function App() {
     const timer = setTimeout(() => setNotice(null), 15000);
     return () => clearTimeout(timer);
   }, [notice]);
+  const noticeImage = safePreview(notice?.thumbnail) ?? safePreview(notice?.frames?.[0]?.preview);
   const device = feed?.devices.find((d) => d.id === deviceId),
     events: Event[] = eventsForDevice(
       results ?? feed?.incidents ?? [],
@@ -1171,10 +1178,25 @@ export function App() {
             mobile && { left: 12, right: 12, width: undefined, padding: 16 },
           ]}
         >
-          <Text style={s.heading}>New event</Text>
-          <Text numberOfLines={2} style={s.paragraph}>
-            {notice.summary}
-          </Text>
+          <View style={s.noticeContent}>
+            {noticeImage && (
+              <Image
+                source={{uri: noticeImage}}
+                accessibilityLabel="Saved image from this event"
+                resizeMode="cover"
+                style={s.noticeImage}
+              />
+            )}
+            <View style={{flex: 1, minWidth: 0}}>
+              <Text numberOfLines={1} style={s.heading}>
+                {feed?.devices.find(d => d.id === notice.deviceId)?.name ?? "New event"}
+              </Text>
+              <Text numberOfLines={3} style={s.paragraph}>
+                {notice.summary}
+              </Text>
+              <Text style={s.muted}>Saved event · {new Date(notice.at).toLocaleTimeString()}</Text>
+            </View>
+          </View>
           <View style={s.actions}>
             <Action
               onPress={() => {
@@ -1330,6 +1352,8 @@ const s = StyleSheet.create({
     borderColor: "#007bb9",
     borderRadius: 12,
   },
+  noticeContent: {flexDirection: "row", alignItems: "center", gap: 12},
+  noticeImage: {width: 128, height: 96, borderRadius: 6, backgroundColor: "#eaf0f5"},
   boxLabel: {
     fontSize: 11,
     color: "#fff",

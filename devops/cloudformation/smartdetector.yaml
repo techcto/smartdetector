@@ -133,6 +133,12 @@
       "Type": "String",
       "Default": "",
       "Description": "Optional same-region Secrets Manager ARN. The entire secret value must be the AutoVision service API key; use the AWS-managed Secrets Manager encryption key."
+    },
+    "AdmCredentialsSecretArn": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^arn:[a-z0-9-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$",
+      "Description": "Optional same-region Secrets Manager ARN containing JSON client_id and client_secret for ADM. Use the AWS-managed Secrets Manager key. Credentials are injected only into the worker; background TV delivery requires separate app integration."
     }
   },
   "Conditions": {
@@ -186,6 +192,18 @@
           "Fn::Equals": [
             {
               "Ref": "AutoVisionApiKeySecretArn"
+            },
+            ""
+          ]
+        }
+      ]
+    },
+    "UseAdmCredentials": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "AdmCredentialsSecretArn"
             },
             ""
           ]
@@ -588,6 +606,33 @@
         "ManagedPolicyArns": [
           {
             "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+          }
+        ],
+        "Policies": [
+          {
+            "Fn::If": [
+              "UseAdmCredentials",
+              {
+                "PolicyName": "adm-credentials-read",
+                "PolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "secretsmanager:GetSecretValue"
+                      ],
+                      "Resource": {
+                        "Ref": "AdmCredentialsSecretArn"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
           }
         ]
       }
@@ -1347,6 +1392,34 @@
                     "Ref": "AWS::NoValue"
                   }
                 ]
+              },
+              {
+                "Fn::If": [
+                  "UseAdmCredentials",
+                  {
+                    "Name": "SMARTDETECTOR_ADM_CLIENT_ID",
+                    "ValueFrom": {
+                      "Fn::Sub": "${AdmCredentialsSecretArn}:client_id::"
+                    }
+                  },
+                  {
+                    "Ref": "AWS::NoValue"
+                  }
+                ]
+              },
+              {
+                "Fn::If": [
+                  "UseAdmCredentials",
+                  {
+                    "Name": "SMARTDETECTOR_ADM_CLIENT_SECRET",
+                    "ValueFrom": {
+                      "Fn::Sub": "${AdmCredentialsSecretArn}:client_secret::"
+                    }
+                  },
+                  {
+                    "Ref": "AWS::NoValue"
+                  }
+                ]
               }
             ]
           }
@@ -1378,7 +1451,8 @@
               }
             ]
           }
-        }
+        },
+        "PlatformVersion": "1.4.0"
       }
     },
     "BedrockAccess": {
