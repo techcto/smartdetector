@@ -24,3 +24,9 @@ __pycache__
 readme.txt
 Inspiration.md
 
+# Generated native SDK material is not part of the web/API build.
+apps/vega/.generated
+apps/vega/build
+apps/vega/bundle
+apps/vega/preview/dist
+

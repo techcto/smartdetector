@@ -4,7 +4,7 @@ export type MembershipRole='admin'|'operator'|'viewer';
 export type OrgMembership={id:string;orgId:string;userId:string;role:MembershipRole;status:'active'|'disabled';invitedByUserId?:string;createdAt:string;updatedAt:string};
 export type NodeStatus='pending'|'healthy'|'stale'|'offline';
 export type Node={tenantId:string;serverId:string;agentId:string;displayName:string;platform?:string;providerKey?:string;connectionId?:string;modelId?:string;externalId?:string;tags:string[];status:NodeStatus;createdAt:string;lastHeartbeat:string};
-export type IncidentRecord={tenantId:string;serverId:string;agentId:string;incidentId:string;state:string;startedAt:string;updatedAt:string;payload:unknown};
+export type IncidentRecord={tenantId:string;serverId:string;agentId:string;incidentId:string;state:string;startedAt:string;updatedAt:string;payload:unknown;ttl?:number};
 export type SmartDetectorEvent={tenantId:string;serverId:string;agentId:string;type:string;at:string;metadata?:Record<string,string>};
 export const normalizedEvents=['viewer.request','edge.cache.hit','edge.cache.miss','waf.allow','waf.block','origin.request','origin.response','origin.timeout','app.php.slow','app.php.max_children','host.cpu','host.memory','service.restart','monitor.down','protection.enabled','protection.expired'] as const;
 export type UserRole='root'|'admin'|'operator'|'viewer';
@@ -14,7 +14,7 @@ export type Settings={
   detection:{warningPercent:number;criticalPercent:number;emergencyPercent:number;trafficMultiplier:number;distributedCrawlerCorrelation:boolean;applicationFailureDetection:boolean;heartbeatStaleSeconds:number};
   notifications:{whatsappEnabled:boolean;whatsappSenderId:string;emailEnabled:boolean;recipients:string};
   response:{allowRemoteRequests:boolean;dryRun:boolean;defaultTtlSeconds:number;maxTtlSeconds:number};
-  privacy:{evidenceRetentionDays:number;maxEvidenceLines:number;removeQueryValues:boolean;fingerprintUserAgents:boolean};
+  privacy:{evidenceRetentionDays:number;imageRetentionDays?:number;maxEvidenceLines:number;removeQueryValues:boolean;fingerprintUserAgents:boolean};
   updatedAt:string;
 };
 export type Product={id:string;name:string;description:string;stripePriceId:string;monthlyPrice:number;serverLimit:number;active:boolean};
@@ -24,7 +24,7 @@ export function defaultSettings(tenantId:string):Settings{return{
   detection:{warningPercent:2,criticalPercent:10,emergencyPercent:30,trafficMultiplier:5,distributedCrawlerCorrelation:true,applicationFailureDetection:true,heartbeatStaleSeconds:180},
   notifications:{whatsappEnabled:false,whatsappSenderId:process.env.SMARTDETECTOR_WHATSAPP_ORIGINATION_ID??'',emailEnabled:false,recipients:process.env.SMARTDETECTOR_NOTIFICATION_RECIPIENTS??''},
   response:{allowRemoteRequests:false,dryRun:true,defaultTtlSeconds:300,maxTtlSeconds:900},
-  privacy:{evidenceRetentionDays:30,maxEvidenceLines:500,removeQueryValues:true,fingerprintUserAgents:true},
+  privacy:{evidenceRetentionDays:1,maxEvidenceLines:500,removeQueryValues:true,fingerprintUserAgents:true},
   updatedAt:new Date(0).toISOString(),
 }}
 

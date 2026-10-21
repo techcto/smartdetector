@@ -5,6 +5,7 @@ import type{SmartDetectorEvent,SmartDetectorUser,IncidentRecord,Node,OrgMembersh
 import{defaultSettings}from'./model';
 import{markHistoryPurge,deleteStoredHistory,writeHistory}from'./history-privacy';
 import {markDeviceRemoved,deleteDeviceHistory,devicePrivacyKey} from './device-privacy';
+import {evidenceVisible} from './image-retention';
 
 const tableName=process.env.SMARTDETECTOR_TABLE??'smartdetector-local';
 const client=DynamoDBDocumentClient.from(new DynamoDBClient({endpoint:process.env.SMARTDETECTOR_DYNAMODB_ENDPOINT}),{marshallOptions:{removeUndefinedValues:true}});
@@ -31,6 +32,14 @@ function slugify(name:string){return name.toLowerCase().replace(/[^a-z0-9]+/g,'-
 const SINGLETON_PK='SINGLETON',SINGLETON_SK='SINGLETON';
 
 export const dynamoStore={
+  async expireEvidence(org:string,days:number){
+    await ensureTable();let cursor:Record<string,unknown>|undefined,deleted=0;
+    do{const page=await client.send(new QueryCommand({TableName:tableName,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',ExpressionAttributeValues:{':pk':'ORG#'+org,':prefix':'INCIDENT#'},ExclusiveStartKey:cursor,ConsistentRead:true,Limit:50}));
+      for(const row of page.Items??[]){if(evidenceVisible(row as IncidentRecord,days))continue;
+        try{await client.send(new DeleteCommand({TableName:tableName,Key:{pk:row.pk,sk:row.sk},ConditionExpression:'#updated=:updated AND #started=:started'+(row.ttl===undefined?' AND attribute_not_exists(#ttl)':' AND #ttl=:ttl'),ExpressionAttributeNames:{'#updated':'updatedAt','#started':'startedAt','#ttl':'ttl'},ExpressionAttributeValues:{':updated':row.updatedAt,':started':row.startedAt,...(row.ttl===undefined?{}:{':ttl':row.ttl})}}));deleted++;}catch(e){if(!(e instanceof Error&&e.name==='ConditionalCheckFailedException'))throw e;}
+      }cursor=page.LastEvaluatedKey;
+    }while(cursor);return deleted;
+  },
   async removeDevice(orgId:string,id:string){await ensureTable();await markDeviceRemoved(orgId,id);const deleted=await deleteDeviceHistory(orgId,id);await client.send(new DeleteCommand({TableName:tableName,Key:{pk:'ORG#'+orgId,sk:'NODE#'+id}}));await (await import('./people')).prunePersonActivity(orgId);return {deleted}},
   async purgeHistory(orgId:string){await ensureTable();const cutoff=await markHistoryPurge(orgId),nodes=await this.nodes(orgId);const deleted=await deleteStoredHistory(orgId,nodes.map(n=>n.serverId),cutoff);await (await import('./people')).prunePersonActivity(orgId);return{deleted,cutoff}},
   async createOrganization(v:{name:string;ownerId:string;orgType:OrgType;contactEmail?:string;contactPhone?:string}):Promise<Organization>{
@@ -56,8 +65,9 @@ export const dynamoStore={
   },
   async organizations():Promise<Organization[]>{
     await ensureTable();
-    const r=await client.send(new QueryCommand({TableName:tableName,IndexName:'GSI1',KeyConditionExpression:'gsi1pk=:pk',ExpressionAttributeValues:{':pk':'ORG'}}));
-    return (r.Items??[]) as Organization[];
+    const rows:Organization[]=[];let cursor:Record<string,unknown>|undefined;
+    do{const page=await client.send(new QueryCommand({TableName:tableName,IndexName:'GSI1',KeyConditionExpression:'gsi1pk=:pk',ExpressionAttributeValues:{':pk':'ORG'},ExclusiveStartKey:cursor}));rows.push(...(page.Items??[]) as Organization[]);cursor=page.LastEvaluatedKey;}while(cursor);
+    return rows;
   },
   async putMembership(v:OrgMembership){
     await ensureTable();

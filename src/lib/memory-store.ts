@@ -3,6 +3,7 @@ import type{SmartDetectorEvent,SmartDetectorUser,IncidentRecord,Node,OrgMembersh
 import{defaultSettings}from'./model';
 import{markHistoryPurge,memoryHistoryCutoff}from'./history-privacy';
 import {markDeviceRemoved,assertDeviceHistory} from './device-privacy';
+import {evidenceVisible} from './image-retention';
 type State={orgs:Map<string,Organization>;singletonOrgId?:string;memberships:Map<string,OrgMembership>;nodes:Map<string,Node>;incidents:Map<string,IncidentRecord>;events:Map<string,SmartDetectorEvent[]>;users:Map<string,SmartDetectorUser>;passwords:Map<string,string>;subscriptions:Map<string,Subscription>;settings:Map<string,Settings>};
 const g=globalThis as typeof globalThis&{smartdetectorState?:State};
 export const state:State=g.smartdetectorState??={orgs:new Map(),memberships:new Map(),nodes:new Map(),incidents:new Map(),events:new Map(),users:new Map(),passwords:new Map(),subscriptions:new Map(),settings:new Map()};
@@ -12,6 +13,7 @@ const membershipKey=(orgId:string,userId:string)=>`${orgId}\0${userId}`;
 const MAX_EVENTS_PER_NODE=200;
 function slugify(name:string){return name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||randomUUID().slice(0,8)}
 export const memoryStore={
+  async expireEvidence(org:string,days:number){let deleted=0;for(const [key,row] of state.incidents)if(row.tenantId===org&&!evidenceVisible(row,days)){state.incidents.delete(key);deleted++;}return deleted;},
   async purgeHistory(orgId:string){const cutoff=await markHistoryPurge(orgId);let deleted=0;for(const [k,v]of state.incidents)if(v.tenantId===orgId&&Date.parse(v.startedAt)<=cutoff){state.incidents.delete(k);deleted++}for(const [k,rows]of state.events){const kept=rows.filter(v=>v.tenantId!==orgId||Date.parse(v.at)>cutoff);deleted+=rows.length-kept.length;if(kept.length)state.events.set(k,kept);else state.events.delete(k)}await (await import('./people')).prunePersonActivity(orgId);return{deleted,cutoff}},
   async createOrganization(v:{name:string;ownerId:string;orgType:OrgType;contactEmail?:string;contactPhone?:string}):Promise<Organization>{
     const org:Organization={id:randomUUID(),name:v.name,slug:`${slugify(v.name)}-${randomUUID().slice(0,6)}`,ownerId:v.ownerId,orgType:v.orgType,contactEmail:v.contactEmail,contactPhone:v.contactPhone,enrollmentToken:randomUUID(),createdAt:new Date().toISOString()};

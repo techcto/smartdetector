@@ -46,12 +46,16 @@ Deadline: October 23, 2026, noon PDT (3 PM EDT). Alexa remains configuration-onl
 
 ## Try SmartDetector
 
+For developer registration, the official Ring Playground, local token connection, and production provider linking, see [Ring developer testing](docs/ring-developer-testing.md).
+
+Privacy policy, signed-in deletion options, and 24-hour default event-image retention are documented in [Privacy and deletion](docs/privacy-and-deletion.md). Longer retention requires an active paid subscription and an explicit administrator choice.
+
 Open [smartdetector.com](https://smartdetector.com) and sign in with an account supplied by the deployment owner. Hosted launch credentials are private and are **not** the local development defaults. In SaaS mode, signup creates a personal workspace; private installations disable public signup and billing.
 
-1. Choose an organization and use **Run smoke sensor simulation** in the command center.
-2. Inspect the device observation and resulting deterministic incident.
+1. Choose a workspace and connect an authorized device. For localhost camera testing, use Ring Playground in the Connect Ring drawer.
+2. Inspect received device events and resulting observations. Discovery/live viewing alone does not generate analyzed events.
 3. Root configures AutoVision in **Account → Admin**; deployment environment variables remain a fallback. AutoVision is a system service, not a user-configurable provider.
-4. Use **Test image detection** to add a synthetic image-pair motion observation to the active organization.
+4. Validate configured analysis with authorized camera activity or an explicit API request using your own images.
 
 The current hosted stack, `smartdetector-apphub-v011`, runs on the shared AppHub Fargate platform. The standalone CloudFormation template remains available for private installations. The stack-name suffix is historical; it is not a statement of the running release version.
 
@@ -155,7 +159,7 @@ For the Web App Tester route, choose a model explicitly listed as **Fire OS**, n
 
 1. Start the local stack with `bash app.sh up` and open `http://localhost:8082` on your computer.
 2. Open `/tv` in a second browser to preview the TV layout, request a code, and approve it at `/tv/connect` using your signed-in administrator session. On a physical TV, replace `localhost` with the computer's LAN IP and use the same origin for pairing approval.
-3. Run **Run smoke sensor simulation** in the command center. This is clearly labeled synthetic test data, not an actual smoke alarm. Confirm the resulting incident appears on the paired display.
+3. Trigger authorized camera activity and confirm a received/analyzed event appears on the paired display. Local Playground discovery/live view is a separate media test and does not synthesize events.
 4. Open the incident with Select, return with Back, and verify refresh. Remove the Fire TV connection in provider settings and confirm the display loses access.
 5. Source checks: `npm ci`, `npm run typecheck`, `npm run lint`, and `npm run test:web`. Pairing tests cover pending/expired codes, secret verification, concurrent approval, token tampering, tenant binding, and revocation. Real-device testing remains separate.
 
@@ -310,6 +314,11 @@ Future applications may reuse AutoVision face measurements for building security
 - Publish versioned images using the existing tag-release workflow; review CloudFormation changes before execution. Tests remain local verification rather than a new release-workflow gate.
 
 ## Native Vega TV client
+
+For camera events without Ring access, see [Ring-free local replay](docs/local-camera-replay.md).
+After `bash app.sh up`, run `npm run local:replay -- --sample intruder` and pair
+the included web TV at `http://localhost:8082/tv`. Recorded mode uses saved sample
+results and no AI/provider calls; `--live` explicitly runs the configured AutoVision service.
 
 The native SmartDetector Console source and release pipeline are documented in [apps/vega/README.md](apps/vega/README.md). CI tests its API logic; version tags archive source and build ARMv7 packages in an isolated, version-pinned Vega SDK Docker environment. Device validation remains separate. Web/API Marketplace releases are independent of Amazon Appstore submission.
 

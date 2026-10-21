@@ -29,10 +29,12 @@
         "STRIPE_STARTER_PRICE_ID": "${STRIPE_STARTER_PRICE_ID:-}",
         "STRIPE_SCALE_PRICE_ID": "${STRIPE_SCALE_PRICE_ID:-}",
         "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}",
-        "SMARTDETECTOR_AUTOVISION_API_KEY": "${SMARTDETECTOR_AUTOVISION_API_KEY:-}"
+        "SMARTDETECTOR_AUTOVISION_API_KEY": "${SMARTDETECTOR_AUTOVISION_API_KEY:-}",
+        "SMARTDETECTOR_LOCAL_REPLAY": "true",
+        "SMARTDETECTOR_LOCAL_PLAYGROUND": "true"
       },
       "ports": [
-        "${SMARTDETECTOR_WEB_PORT:-8082}:3000"
+        "127.0.0.1:${SMARTDETECTOR_WEB_PORT:-8082}:3000"
       ],
       "healthcheck": {
         "test": [
@@ -87,7 +89,9 @@
         "STRIPE_STARTER_PRICE_ID": "${STRIPE_STARTER_PRICE_ID:-}",
         "STRIPE_SCALE_PRICE_ID": "${STRIPE_SCALE_PRICE_ID:-}",
         "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}",
-        "SMARTDETECTOR_AUTOVISION_API_KEY": "${SMARTDETECTOR_AUTOVISION_API_KEY:-}"
+        "SMARTDETECTOR_AUTOVISION_API_KEY": "${SMARTDETECTOR_AUTOVISION_API_KEY:-}",
+        "SMARTDETECTOR_LOCAL_REPLAY": "true",
+        "SMARTDETECTOR_LOCAL_PLAYGROUND": "true"
       },
       "ports": [
         "127.0.0.1:${SMARTDETECTOR_API_PORT:-3201}:3001"
@@ -145,7 +149,8 @@
         "STRIPE_STARTER_PRICE_ID": "${STRIPE_STARTER_PRICE_ID:-}",
         "STRIPE_SCALE_PRICE_ID": "${STRIPE_SCALE_PRICE_ID:-}",
         "SMARTDETECTOR_AUTOVISION_URL": "${SMARTDETECTOR_AUTOVISION_URL:-http://autovision-api:3001}",
-        "SMARTDETECTOR_AUTOVISION_API_KEY": "${SMARTDETECTOR_AUTOVISION_API_KEY:-}"
+        "SMARTDETECTOR_AUTOVISION_API_KEY": "${SMARTDETECTOR_AUTOVISION_API_KEY:-}",
+        "SMARTDETECTOR_LOCAL_PLAYGROUND": "true"
       },
       "depends_on": {
         "smartdetector-dynamodb": {
@@ -230,6 +235,43 @@
       ],
       "depends_on": {
         "smartdetector-api": {
+          "condition": "service_healthy"
+        }
+      }
+    },
+    "smartdetector-test-cameras": {
+      "profiles": [
+        "test-cameras"
+      ],
+      "image": "node:26-alpine",
+      "init": true,
+      "user": "node",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "network_mode": "service:smartdetector-web",
+      "working_dir": "/runner",
+      "command": [
+        "node",
+        "test-cameras.mjs"
+      ],
+      "volumes": [
+        "./devops/local/replay-camera.mjs:/runner/replay-camera.mjs:ro",
+        "./devops/local/test-cameras.mjs:/runner/test-cameras.mjs:ro"
+      ],
+      "environment": {
+        "SMARTDETECTOR_REPLAY_URL": "http://127.0.0.1:3000",
+        "SMARTDETECTOR_REPLAY_USER": "${SMARTDETECTOR_ROOT_USER:-root}",
+        "SMARTDETECTOR_REPLAY_PASSWORD": "${SMARTDETECTOR_ROOT_PASSWORD:-smartdetector-local-change-me}",
+        "SMARTDETECTOR_TEST_EVENT_COUNT": "${SMARTDETECTOR_TEST_EVENT_COUNT:-240}",
+        "SMARTDETECTOR_TEST_EVENT_INTERVAL": "${SMARTDETECTOR_TEST_EVENT_INTERVAL:-15}"
+      },
+      "depends_on": {
+        "smartdetector-web": {
           "condition": "service_healthy"
         }
       }

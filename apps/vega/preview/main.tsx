@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "../src/App";
-import { SERVICE_ORIGIN } from "../src/config";
+import { SERVICE_ORIGIN } from "./config";
 
 // Transport real requests through the local server, without fabricated responses.
 const networkFetch = window.fetch.bind(window);

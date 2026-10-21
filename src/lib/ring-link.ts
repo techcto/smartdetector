@@ -101,6 +101,7 @@ export async function completeSystemRingLink(orgId:string,userId:string,nonce:st
  try{await completeRingLink(orgId,connection.id,userId,nonce,time,fetcher,true);return connection.id}catch(e){if(!existing)await removeSetting(orgId,connection.id);throw e}
 }
 export async function ringAccess(orgId:string,connectionId:string,fetcher:typeof fetch=fetch){
+ if(connectionId.startsWith('playground-'))return (await import('./ring-playground')).playgroundAccess(orgId,connectionId);
  const config=await connectionCredentials(orgId,connectionId,'ring');if(!config?.accessToken)throw new Error('Link your Ring account first');
  if(!config.expiresAt||Number(config.expiresAt)>Date.now()+60000)return config;
  if(!config.refreshToken||!config.clientId||!config.clientSecret)throw new Error('Ring authorization expired. Link your account again.');

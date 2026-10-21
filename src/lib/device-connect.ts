@@ -8,13 +8,14 @@ export async function syncRingCameras(orgId:string,connectionId:string,fetcher:t
  const config=await ringAccess(orgId,connectionId,fetcher),document=await new RingClient(config.accessToken,fetcher).devices();let count=0;
  for(const resource of document.data){
   const externalId=resource.id;if(typeof externalId!=='string'||!/^[a-zA-Z0-9_.:-]{1,200}$/.test(externalId))continue;
-  const serverId='ring-'+createHash('sha256').update(externalId).digest('hex').slice(0,24),previous=await store.node(orgId,serverId),at=new Date().toISOString();
+  const serverId=(config.playgroundExpiresAt?connectionId+'-':'ring-')+createHash('sha256').update(externalId).digest('hex').slice(0,24),previous=await store.node(orgId,serverId),at=new Date().toISOString();
   if((await devicePrivacy(orgId,serverId))?.removed)continue;
   if(previous?.connectionId&&previous.connectionId!==connectionId)continue;
-  await store.upsertNode({...previous,tenantId:orgId,serverId,agentId:'ring',providerKey:'ring',platform:'ring',connectionId,modelId:previous?.modelId??'ring-camera',externalId,displayName:typeof resource.attributes?.name==='string'?resource.attributes.name.slice(0,100):'Ring camera',tags:previous?.tags??[],status:previous?.status??'pending',createdAt:previous?.createdAt??at,lastHeartbeat:previous?.lastHeartbeat??new Date(0).toISOString()});count++;
+  await store.upsertNode({...previous,tenantId:orgId,serverId,agentId:'ring',providerKey:'ring',platform:'ring',connectionId,modelId:previous?.modelId??'ring-camera',externalId,displayName:(config.playgroundExpiresAt?'PLAYGROUND · ':'')+(typeof resource.attributes?.name==='string'?resource.attributes.name.slice(0,100):'Ring camera'),tags:config.playgroundExpiresAt?['ring-playground']:previous?.tags??[],status:config.playgroundExpiresAt?'healthy':previous?.status??'pending',createdAt:previous?.createdAt??at,lastHeartbeat:config.playgroundExpiresAt?at:previous?.lastHeartbeat??new Date(0).toISOString()});count++;
  }return count;
 }
 export async function connectRingDevice(orgId:string,connectionId:string,modelId:string,externalId:string,fetcher:typeof fetch=fetch){
+ if(connectionId.startsWith('playground-'))throw Error('Use automatic Playground discovery');
  const model=deviceModels.find(m=>m.id===modelId&&m.providerKey==='ring');
  if(!model||typeof externalId!=='string'||!/^[a-zA-Z0-9_.:-]{1,200}$/.test(externalId))throw new Error('Invalid device selection');
  const config=await ringAccess(orgId,connectionId,fetcher),document=await new RingClient(config.accessToken,fetcher).devices();

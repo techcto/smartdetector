@@ -46,6 +46,10 @@ export async function analyzeFrames(orgId: string, deviceId: string, frames: Vis
   if (!r.ok) throw new Error("AutoVision analysis failed (HTTP " + r.status + ")");
   const result = await r.json() as VisionResult;
   if (!Array.isArray(result.observations)) throw new Error("Invalid AutoVision result");
+  return persistVisionAnalysis(orgId,deviceId,frames,result,source,requestId,fetcher,observedAt);
+}
+// Shared event persistence for real analysis and explicitly labeled local recorded replays.
+export async function persistVisionAnalysis(orgId:string,deviceId:string,frames:VisionFrame[],result:VisionResult,source:string,requestId?:string,fetcher:typeof fetch=fetch,observedAt=Date.now(),replay?:{sample:string;recordedAt:string}){
   const at = new Date(observedAt).toISOString();
   if(observedAt<=await historyCutoff(orgId))throw Error('History was purged');
   await assertDeviceHistory(orgId,deviceId,at);
@@ -54,11 +58,12 @@ export async function analyzeFrames(orgId: string, deviceId: string, frames: Vis
   const evidence=evidenceFrames(frames,result.frames),detections=detectionFrames(result.frames);
   // Optional biometric path: failures must not lose the event or mute unknown people.
   let recognition:Awaited<ReturnType<typeof recognizeEvent>>|undefined;
-  try{if((await enrolledPeople(orgId)).length)recognition=await recognizeEvent(orgId,await measureFaces(frames,fetcher),detections);}catch{/* Face service unavailable: preserve normal event behavior. */}
+  try{if(!replay&&(await enrolledPeople(orgId)).length)recognition=await recognizeEvent(orgId,await measureFaces(frames,fetcher),detections);}catch{/* Face service unavailable: preserve normal event behavior. */}
   await assertDeviceHistory(orgId,deviceId,at);
   const personNotify=recognition?.notify!==false||result.observations.some(o=>o.detected&&!['person','motion'].includes(o.type));
-  await store.putIncident({tenantId: orgId, agentId: source, serverId: deviceId, incidentId, state: "review", startedAt: at, updatedAt: at, payload: {personNotify,kind: "vision-review", source, autoVisionJobId: result.job_id, thumbnail: evidence[0]?.preview, evidenceFrames:evidence, detectionFrames:detections, detectionSchemaVersion:1, observations: result.observations, classification: result.classification, engineVersion: result.engine_version, advisory: true, assessment: "Visual observation for human review; not an intruder or emergency determination."}});
+  const classification=replay?{status:'recorded-replay',summary:'Recorded sample replay — not live Ring footage or new AI analysis. '+(result.classification?.summary??'')}:result.classification;
+  await store.putIncident({tenantId: orgId, agentId: source, serverId: deviceId, incidentId, state: "review", startedAt: at, updatedAt: at, payload: {personNotify,kind: "vision-review", source, ...(replay?{replay}:{}),autoVisionJobId: result.job_id, thumbnail: evidence[0]?.preview, evidenceFrames:evidence, detectionFrames:detections, detectionSchemaVersion:1, observations: result.observations, classification, engineVersion: result.engine_version, advisory: true, assessment: "Visual observation for human review; not an intruder or emergency determination."}});
   if(recognition)await saveMatchedActivity(orgId,incidentId,recognition.sightings);
-  if(result.observations.some(o=>o.type==='person'&&o.detected)&&personNotify)await deliverIncident(orgId,incidentId);
+  if(!replay&&result.observations.some(o=>o.type==='person'&&o.detected)&&personNotify)await deliverIncident(orgId,incidentId);
   return {incidentId, analysis: result};
 }

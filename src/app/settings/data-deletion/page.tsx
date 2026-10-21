@@ -1,0 +1,4 @@
+import Link from 'next/link';
+import Privacy from '../privacy';
+export const metadata={title:'Delete saved data | SmartDetector'};
+export default function DataDeletion(){return <div className="vstack gap-4"><Link href="/settings">← Back to Settings</Link><section><h1>Delete data without deleting your account</h1><p>Administrators can purge the active workspace’s saved events, AI observations and image previews below. Connected devices and the account stay active. New events continue arriving.</p><p>Purging does not delete original Ring recordings, separate AutoVision jobs, delivered notifications, backups, or optional enrolled face references. Manage people separately.</p></section><Privacy/><p>For other data or if you are not a workspace administrator, contact <a href="mailto:help@solodev.com?subject=SmartDetector%20data%20deletion%20request">help@solodev.com</a>. <Link href="/settings/account-deletion">Request account deletion instead</Link>.</p></div>;}

@@ -6,7 +6,7 @@ Open **Account → Admin**, immediately after Users. `/admin` verifies the signe
 
 Enter the HTTPS service origin and a dedicated service API key, then save. A blank key preserves the existing credential. Saved keys are encrypted with the installation provider/session secret and stored in the existing DynamoDB application table under `SYSTEM#SERVICES / AUTOVISION`. Only root can read configuration status or change these settings; responses never contain the saved key. Web and worker analysis reads this installation-wide configuration. Environment values remain the fallback until an administrator saves a setting.
 
-Keep the encryption secret stable across web/worker tasks and protect the application table and its backups. In memory-only development, saved settings are process-local and not suitable for a separate worker or production. Test image detection is synthetic activity and may consume API quota.
+Keep the encryption secret stable across web/worker tasks and protect the application table and its backups. In memory-only development, saved settings are process-local and not suitable for a separate worker or production. Synthetic image-test buttons are not exposed in the app. Validate configured analysis with authorized device activity or explicit API requests; inference may consume API quota.
 
 ## Ring
 

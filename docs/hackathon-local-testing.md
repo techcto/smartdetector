@@ -1,5 +1,13 @@
 # Hackathon local testing
 
+For camera testing, start with [Ring developer testing](ring-developer-testing.md): developer account → Playground → Connect Ring drawer → token renewal. Production Ring linking is a separate flow in that guide.
+
+**No Ring camera needed:** after starting Compose, run
+`npm run local:replay -- --sample intruder`. Open `/tv` and pair it to the same
+root workspace to watch events, saved frames and boxes. See
+[local camera replay](local-camera-replay.md) for bounded loops, live analysis,
+the recorded-results label and Goyal's Vega simulator backend configuration.
+
 Synthetic admin sample data is enabled only with `NODE_ENV=development` and
 `SMARTDETECTOR_DEPLOYMENT_MODE=on-premise`, using in-memory or local DynamoDB storage.
 SaaS mode and all production builds (including local production previews) never seed it.

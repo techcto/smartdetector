@@ -16,7 +16,8 @@
     "test:e2e:admin": "node devops/testing/admin-e2e.mjs",
     "worker": "tsx src/worker/index.ts",
     "agentcore:dev": "npm --prefix submodules/smartdetector-agentcore start",
-    "test:agentcore": "npm --prefix submodules/smartdetector-agentcore test"
+    "test:agentcore": "npm --prefix submodules/smartdetector-agentcore test",
+    "local:replay": "node devops/local/replay-camera.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "3.1136.0",

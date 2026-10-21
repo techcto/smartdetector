@@ -2,14 +2,14 @@ export class AccessRevoked extends Error {}
 export function serviceOrigin(value) {
   const u = new URL(value);
   if (
-    u.protocol !== "https:" ||
+    !(u.protocol === "https:" || u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname)) ||
     u.username ||
     u.password ||
     u.search ||
     u.hash ||
     u.pathname !== "/"
   )
-    throw Error("Use an HTTPS SmartDetector origin");
+    throw Error("Use an HTTPS SmartDetector origin (HTTP is allowed only on loopback for local testing)");
   return u.origin;
 }
 export function displayDevices(devices) {
