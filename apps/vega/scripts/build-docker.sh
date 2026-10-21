@@ -2,7 +2,7 @@
 set -euo pipefail
 app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 builder_image=smartdetector-vega-builder:0.24.12112
-build_volume="${SMARTDETECTOR_VEGA_BUILD_VOLUME:-smartdetector-vega-generated}"
+build_volume="${SMARTDETECTOR_VEGA_BUILD_VOLUME:-smartdetector-vega-rn72-generated}"
 case "$build_volume" in ''|*[!a-zA-Z0-9_.-]*) echo 'Invalid build volume name' >&2; exit 1;; esac
 docker build --platform linux/amd64 -t "$builder_image" "$app_dir"
 # Nested volume mountpoints must exist before the parent is mounted read-only.

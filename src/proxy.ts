@@ -6,6 +6,7 @@ export async function proxy(req:NextRequest){
   if(process.env.SMARTDETECTOR_DEPLOYMENT_MODE!=='saas'&&(p==='/users'||p.startsWith('/users/')||p==='/organizations'||p.startsWith('/organizations/')||p==='/locations'||p.startsWith('/locations/')||p.startsWith('/admin/organizations')||p.startsWith('/admin/users')||p.startsWith('/admin/devices')||p==='/billing'||p==='/settings/billing'||p==='/api/v1/users'||p.startsWith('/api/v1/users/')||p==='/api/v1/billing/plan'))return new NextResponse('Not available in private mode',{status:404});
   if(/^\/demo\/(intruder|dognight|backyardintruder|package)(\.mp4|-analysis\.json|-poster\.jpg)$/.test(p))return NextResponse.next();
   // These routes authenticate signed Ring callbacks or scoped bearer credentials themselves.
+  if(p==='/api/v1/tv/push'||p==='/api/v1/tv/push/event')return NextResponse.next();
   if(p==='/api/v1/events/search'||p==='/api/v1/integrations/ring/token'||p==='/api/v1/integrations/ring/webhook')return NextResponse.next();
   if(/^\/brand\/smartdetector-(wordmark|square|icon)\.svg$/.test(p))return NextResponse.next();
   if(p==='/ring/link'||p==='/api/v1/integrations/ring/link'||p.startsWith('/api/v1/integrations/ring/token/')||p==='/api/demo/analyze'||/^\/demo\/(dogs-in-yard|door-visitor)\.mp4$/.test(p))return NextResponse.next();

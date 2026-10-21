@@ -31,7 +31,10 @@ import { SERVICE_ORIGIN } from "./config";
 import { browserVoiceAvailable, startBrowserVoice } from "./voice";
 import { focusView } from "./focus";
 import { brandMark } from "./brand";
-import { postSystemAlert } from "./notifications";
+import {
+  backgroundAlertsAvailable,
+  configureBackgroundAlerts,
+} from "./notifications";
 import Pairing from "./PairingScreen";
 type Box = {
   label: string;
@@ -275,6 +278,9 @@ export function App() {
     [searchNote, setSearchNote] = useState(""),
     [notice, setNotice] = useState<Event | null>(null),
     [alerts, setAlerts] = useState(true),
+    [backgroundAlerts, setBackgroundAlerts] = useState(false),
+    [notificationBusy, setNotificationBusy] = useState(false),
+    [notificationStatus, setNotificationStatus] = useState(""),
     [settingsOpen, setSettingsOpen] = useState(false),
     [disconnectPrompt, setDisconnectPrompt] = useState(false),
     [link, setLink] = useState<ReturnType<typeof externalLink> | null>(null);
@@ -345,6 +351,8 @@ export function App() {
     setSubmitted("");
     setSearchNote("");
     setNotice(null);
+    setBackgroundAlerts(false);
+    setNotificationStatus("");
     setSettingsOpen(false);
     setDisconnectPrompt(false);
     setLink(null);
@@ -401,7 +409,15 @@ export function App() {
       return true;
     }
     return false;
-  }, [link, section, selectedId, deviceId, submitted, disconnectPrompt, settingsOpen]);
+  }, [
+    link,
+    section,
+    selectedId,
+    deviceId,
+    submitted,
+    disconnectPrompt,
+    settingsOpen,
+  ]);
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", back);
     return () => sub.remove();
@@ -508,9 +524,6 @@ export function App() {
         const fresh = newAlert(seen.current, next.incidents);
         if (fresh && allowAlerts.current) {
           setNotice(fresh);
-          void postSystemAlert(fresh).catch(() => {
-            // Retain the in-app alert if the OS notification service is unavailable.
-          });
         }
         seen.current = new Set(next.incidents.map((i: Event) => i.id));
         setNotice((n) =>
@@ -565,7 +578,8 @@ export function App() {
     const timer = setTimeout(() => setNotice(null), 15000);
     return () => clearTimeout(timer);
   }, [notice]);
-  const noticeImage = safePreview(notice?.thumbnail) ?? safePreview(notice?.frames?.[0]?.preview);
+  const noticeImage =
+    safePreview(notice?.thumbnail) ?? safePreview(notice?.frames?.[0]?.preview);
   const device = feed?.devices.find((d) => d.id === deviceId),
     events: Event[] = eventsForDevice(
       results ?? feed?.incidents ?? [],
@@ -573,7 +587,11 @@ export function App() {
     ),
     selected = events.find((i) => i.id === selectedId);
   // Vega cannot open a browser; show the address so it can be opened on a phone or computer.
-  function show(page: ExternalPage, from: React.RefObject<View | null>, id?: string) {
+  function show(
+    page: ExternalPage,
+    from: React.RefObject<View | null>,
+    id?: string
+  ) {
     returnTo.current = settingsOpen ? settingsBack : from;
     focusNext.current = linkBack;
     setLink(externalLink(SERVICE_ORIGIN, page, id));
@@ -657,10 +675,15 @@ export function App() {
             </Action>
             <Action
               navigation
-              focusRef={settingsButton} onLayout={land(settingsButton)}
+              focusRef={settingsButton}
+              onLayout={land(settingsButton)}
               label="Console settings"
               selected={settingsOpen}
-              onPress={() => { focusNext.current = settingsBack; setLink(null); setSettingsOpen(true); }}
+              onPress={() => {
+                focusNext.current = settingsBack;
+                setLink(null);
+                setSettingsOpen(true);
+              }}
             >
               Settings
             </Action>
@@ -692,9 +715,18 @@ export function App() {
             <Text style={s.paragraph}>
               This TV can't open web pages. On your phone or computer, go to:
             </Text>
-            <Text selectable style={[s.url, mobile && { fontSize: 22 }]}>{link.url}</Text>
+            <Text selectable style={[s.url, mobile && { fontSize: 22 }]}>
+              {link.url}
+            </Text>
             <Text style={s.paragraph}>{link.detail}</Text>
-            <Action preferred focusRef={linkBack} onLayout={land(linkBack)} onPress={() => void back()}>← Back</Action>
+            <Action
+              preferred
+              focusRef={linkBack}
+              onLayout={land(linkBack)}
+              onPress={() => void back()}
+            >
+              ← Back
+            </Action>
           </View>
         ) : !token ? (
           <View style={{ gap: 12 }}>
@@ -746,22 +778,80 @@ export function App() {
               <Action preferred onPress={() => setDisconnectPrompt(false)}>
                 Keep connected
               </Action>
-              <Action onPress={reset}>
+              <Action
+                disabled={notificationBusy}
+                onPress={() =>
+                  void (async () => {
+                    setNotificationBusy(true);
+                    try {
+                      if (backgroundAlerts)
+                        await configureBackgroundAlerts(token, false);
+                      reset();
+                    } catch {
+                      setNotificationStatus(
+                        "Could not disable background alerts. Try again or revoke this display on the website."
+                      );
+                    } finally {
+                      setNotificationBusy(false);
+                    }
+                  })()
+                }
+              >
                 Disconnect and require pairing again
               </Action>
             </View>
+            {!!notificationStatus && (
+              <Text style={s.muted}>{notificationStatus}</Text>
+            )}
           </View>
         ) : settingsOpen ? (
           <View style={s.panel}>
             <Text style={s.heading}>Console settings</Text>
             <View style={s.actions}>
               <Action onPress={() => setAlerts((a) => !a)}>
-                Alerts {alerts ? "on" : "off"}
+                In-app alerts {alerts ? "on" : "off"}
               </Action>
               <Action onPress={() => setRefreshEpoch((n) => n + 1)}>
                 Refresh now
               </Action>
             </View>
+            {backgroundAlertsAvailable && (
+              <View style={s.actions}>
+                <Action
+                  disabled={notificationBusy}
+                  onPress={() =>
+                    void (async () => {
+                      setNotificationBusy(true);
+                      try {
+                        await configureBackgroundAlerts(
+                          token,
+                          !backgroundAlerts
+                        );
+                        setBackgroundAlerts(!backgroundAlerts);
+                        setNotificationStatus(
+                          backgroundAlerts
+                            ? "Background alerts disabled"
+                            : "Background alerts enabled until display access expires. OS settings control presentation."
+                        );
+                      } catch (e) {
+                        setNotificationStatus(
+                          e instanceof Error
+                            ? e.message
+                            : "Background alerts unavailable"
+                        );
+                      } finally {
+                        setNotificationBusy(false);
+                      }
+                    })()
+                  }
+                >
+                  Background TV alerts {backgroundAlerts ? "on" : "off"}
+                </Action>
+              </View>
+            )}
+            {!!notificationStatus && (
+              <Text style={s.muted}>{notificationStatus}</Text>
+            )}
             <View style={s.actions}>
               <Action onPress={() => show("privacy", settingsBack)}>
                 Privacy policy
@@ -774,7 +864,12 @@ export function App() {
               </Action>
             </View>
             <View style={s.actions}>
-              <Action preferred focusRef={settingsBack} onLayout={land(settingsBack)} onPress={() => void back()}>
+              <Action
+                preferred
+                focusRef={settingsBack}
+                onLayout={land(settingsBack)}
+                onPress={() => void back()}
+              >
                 Back to console
               </Action>
 
@@ -916,7 +1011,13 @@ export function App() {
                           </Action>
                         )}
                         {device.liveView && (
-                          <Action focusRef={liveButton} onLayout={land(liveButton)} onPress={() => show("liveView", liveButton, device.id)}>
+                          <Action
+                            focusRef={liveButton}
+                            onLayout={land(liveButton)}
+                            onPress={() =>
+                              show("liveView", liveButton, device.id)
+                            }
+                          >
                             Live view in web console
                           </Action>
                         )}
@@ -984,7 +1085,11 @@ export function App() {
                           location, and connect your Ring account to discover
                           shared cameras.
                         </Text>
-                        <Action focusRef={devicesButton} onLayout={land(devicesButton)} onPress={() => show("devices", devicesButton)}>
+                        <Action
+                          focusRef={devicesButton}
+                          onLayout={land(devicesButton)}
+                          onPress={() => show("devices", devicesButton)}
+                        >
                           Add device
                         </Action>
                       </View>
@@ -1181,20 +1286,23 @@ export function App() {
           <View style={s.noticeContent}>
             {noticeImage && (
               <Image
-                source={{uri: noticeImage}}
+                source={{ uri: noticeImage }}
                 accessibilityLabel="Saved image from this event"
                 resizeMode="cover"
                 style={s.noticeImage}
               />
             )}
-            <View style={{flex: 1, minWidth: 0}}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={s.heading}>
-                {feed?.devices.find(d => d.id === notice.deviceId)?.name ?? "New event"}
+                {feed?.devices.find((d) => d.id === notice.deviceId)?.name ??
+                  "New event"}
               </Text>
               <Text numberOfLines={3} style={s.paragraph}>
                 {notice.summary}
               </Text>
-              <Text style={s.muted}>Saved event · {new Date(notice.at).toLocaleTimeString()}</Text>
+              <Text style={s.muted}>
+                Saved event · {new Date(notice.at).toLocaleTimeString()}
+              </Text>
             </View>
           </View>
           <View style={s.actions}>
@@ -1352,8 +1460,13 @@ const s = StyleSheet.create({
     borderColor: "#007bb9",
     borderRadius: 12,
   },
-  noticeContent: {flexDirection: "row", alignItems: "center", gap: 12},
-  noticeImage: {width: 128, height: 96, borderRadius: 6, backgroundColor: "#eaf0f5"},
+  noticeContent: { flexDirection: "row", alignItems: "center", gap: 12 },
+  noticeImage: {
+    width: 128,
+    height: 96,
+    borderRadius: 6,
+    backgroundColor: "#eaf0f5",
+  },
   boxLabel: {
     fontSize: 11,
     color: "#fff",

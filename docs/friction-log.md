@@ -51,11 +51,23 @@ Record reproducible friction as it occurs. Entries describe observed development
 - **Expected result:** A supported system-notification path on the current recommended runtime.
 - **Actual result:** RN 0.83 release notes list expo-notifications as unavailable. RN 0.72 provides a separate implementation; the virtual device cannot validate notifications. A notification display API is distinct from ADM background transport. High notification importance also requires a separate privilege.
 - **Severity:** High for the requested cross-app demonstration; the foreground camera/event console still works.
-- **Workaround used:** Preserve RN 0.83, prepare an isolated RN 0.72 package sharing screens/client, and add a normal-importance local notification adapter. Typechecking passed. ADM configuration, background delivery and overlay/return behavior remain unverified; no cross-app success is claimed.
+- **Workaround used:** Use RN 0.72 as the single standard runtime under the existing SmartDetector Console identity. Implement a queued ADM sender, scoped registration, independent background receiver and native actionable toast. The Expo adapter requires a subtitle and does not forward thumbnail/launch-target fields, so the native SDK NotificationManager contract is used instead. The ARMv7 package compiled; access-control smoke checks passed. Configured cloud delivery and playback overlay/return behavior remain unverified; no cross-app success is claimed.
 - **Actionable suggestion:** Publish a supported RN 0.83 equivalent and an end-to-end Vega example covering ADM, notification privileges, opt-out, authenticated navigation and physical-TV playback. State renderer/privilege restrictions next to the API installation instructions.
 - **Sources:** [Release notes](https://developer.amazon.com/docs/vega/0.24/vega-release-notes), [notifications](https://developer.amazon.com/docs/vega-api/0.24/expo-notifications), [ADM](https://developer.amazon.com/docs/vega-api/0.24/README.amazon-devices_kepler-amazon-device-messaging).
 
 ## WSL setup and credential storage on October 21 2026
+
+## Package version and build number on October 21 2026
+
+- **Task attempted:** Update the existing SmartDetector Console on a physical Vega TV without uninstalling it.
+- **Steps taken:** Build version 0.1.16 and attempt installation over version 0.1.12, build 2; compare installed and candidate package metadata using the package manager.
+- **Expected result:** A newer semantic version is accepted, or the error identifies which version field must increase.
+- **Actual result:** A candidate with build number 1 was rejected as Package version decrease even after its manifest and package version matched 0.1.16.
+- **Severity:** Medium; blocked local update, with no data loss.
+- **Workaround used:** Package build number 3, keeping version 0.1.16. The normal update and launch succeeded under com.smartdetector.console; no forced downgrade or uninstall was used. Release CI already uses its increasing workflow run number.
+- **Actionable suggestion:** Include installed and candidate semantic/build versions in the refusal and clarify build-number ordering in the installation guide.
+
+## WSL setup and credential storage details
 
 - **Task attempted:** Build, simulate and install the native console from Ubuntu under WSL.
 - **Steps taken:** Install missing runtime libraries, enable KVM access, launch the virtual device, then authenticate the Vega CLI for the physical TV.

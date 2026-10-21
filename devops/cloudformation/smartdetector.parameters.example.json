@@ -34,6 +34,14 @@
   {
     "ParameterKey": "CertificateArn",
     "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "AdmClientId",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "AdmClientSecret",
+    "ParameterValue": ""
   }
 ]
 

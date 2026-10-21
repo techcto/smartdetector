@@ -20,7 +20,7 @@ Source: [official rules](https://amazonappdev2026.devpost.com/rules), reviewed O
 - AWS: explain the existing Ring queue/worker, AutoVision integration and indexed incident feed using the deployed architecture. Link the relevant CloudFormation and source, without account-specific outputs.
 - Open Source candidate: [independent AgentCore adapter](https://github.com/techcto/smartdetector-agentcore). Verify contribution dates and eligibility before claiming it; [local verification](agentcore-verification.md) does not establish deployed AgentCore execution.
 - Product feedback: attach the [friction log](friction-log.md). Prioritize a supported RN 0.83 notification API, a background-delivery sample and a Playground motion-webhook fixture.
-- Movie-overlay claim remains blocked on ADM setup, receiver/sender integration and physical playback validation. Do not substitute an in-app banner or an in-app movie. Use owned/licensed demo video.
+- Movie-overlay claim remains blocked on configured ADM credentials and physical playback validation. The sender/receiver and actionable popup are implemented; a successful build is not delivery evidence. Do not substitute an in-app banner or an in-app movie. Use owned/licensed demo video.
 
 ## Suggested demo sequence
 

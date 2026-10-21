@@ -134,11 +134,21 @@
       "Default": "",
       "Description": "Optional same-region Secrets Manager ARN. The entire secret value must be the AutoVision service API key; use the AWS-managed Secrets Manager encryption key."
     },
-    "AdmCredentialsSecretArn": {
+    "AdmClientId": {
       "Type": "String",
       "Default": "",
-      "AllowedPattern": "^$|^arn:[a-z0-9-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$",
-      "Description": "Optional same-region Secrets Manager ARN containing JSON client_id and client_secret for ADM. Use the AWS-managed Secrets Manager key. Credentials are injected only into the worker; background TV delivery requires separate app integration."
+      "NoEcho": true,
+      "MaxLength": 512,
+      "AllowedPattern": "[A-Za-z0-9._-]*",
+      "Description": "Optional ADM client ID from Amazon Developer security profile Web Settings. Provide both ADM fields to enable background TV alerts."
+    },
+    "AdmClientSecret": {
+      "Type": "String",
+      "Default": "",
+      "NoEcho": true,
+      "MaxLength": 4096,
+      "AllowedPattern": "[A-Za-z0-9._~+/-]*",
+      "Description": "ADM client secret. CloudFormation stores it in Secrets Manager; never commit populated parameters."
     }
   },
   "Conditions": {
@@ -199,13 +209,29 @@
       ]
     },
     "UseAdmCredentials": {
-      "Fn::Not": [
+      "Fn::And": [
         {
-          "Fn::Equals": [
+          "Fn::Not": [
             {
-              "Ref": "AdmCredentialsSecretArn"
-            },
-            ""
+              "Fn::Equals": [
+                {
+                  "Ref": "AdmClientId"
+                },
+                ""
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AdmClientSecret"
+                },
+                ""
+              ]
+            }
           ]
         }
       ]
@@ -623,7 +649,7 @@
                         "secretsmanager:GetSecretValue"
                       ],
                       "Resource": {
-                        "Ref": "AdmCredentialsSecretArn"
+                        "Ref": "AdmCredentials"
                       }
                     }
                   ]
@@ -905,6 +931,16 @@
                 "Value": {
                   "Ref": "MarketplaceUrl"
                 }
+              },
+              {
+                "Name": "SMARTDETECTOR_ADM_ENABLED",
+                "Value": {
+                  "Fn::If": [
+                    "UseAdmCredentials",
+                    "true",
+                    "false"
+                  ]
+                }
               }
             ],
             "LogConfiguration": {
@@ -1139,6 +1175,16 @@
                 "Value": {
                   "Ref": "ProviderSecret"
                 }
+              },
+              {
+                "Name": "SMARTDETECTOR_ADM_ENABLED",
+                "Value": {
+                  "Fn::If": [
+                    "UseAdmCredentials",
+                    "true",
+                    "false"
+                  ]
+                }
               }
             ],
             "LogConfiguration": {
@@ -1364,6 +1410,16 @@
                 "Value": {
                   "Ref": "AutoVisionUrl"
                 }
+              },
+              {
+                "Name": "SMARTDETECTOR_ADM_ENABLED",
+                "Value": {
+                  "Fn::If": [
+                    "UseAdmCredentials",
+                    "true",
+                    "false"
+                  ]
+                }
               }
             ],
             "LogConfiguration": {
@@ -1399,7 +1455,7 @@
                   {
                     "Name": "SMARTDETECTOR_ADM_CLIENT_ID",
                     "ValueFrom": {
-                      "Fn::Sub": "${AdmCredentialsSecretArn}:client_id::"
+                      "Fn::Sub": "${AdmCredentials}:client_id::"
                     }
                   },
                   {
@@ -1413,7 +1469,7 @@
                   {
                     "Name": "SMARTDETECTOR_ADM_CLIENT_SECRET",
                     "ValueFrom": {
-                      "Fn::Sub": "${AdmCredentialsSecretArn}:client_secret::"
+                      "Fn::Sub": "${AdmCredentials}:client_secret::"
                     }
                   },
                   {
@@ -1598,6 +1654,18 @@
           ]
         }
       }
+    },
+    "AdmCredentials": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Condition": "UseAdmCredentials",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "Description": "Server-only SmartDetector ADM OAuth credentials",
+        "SecretString": {
+          "Fn::Sub": "{\"client_id\":\"${AdmClientId}\",\"client_secret\":\"${AdmClientSecret}\"}"
+        }
+      }
     }
   },
   "Outputs": {
@@ -1639,6 +1707,74 @@
       "Value": {
         "Ref": "DomainName"
       }
+    },
+    "AdmCredentialsSecretArn": {
+      "Condition": "UseAdmCredentials",
+      "Description": "Managed ADM secret ARN; credential values are never output",
+      "Value": {
+        "Ref": "AdmCredentials"
+      }
+    }
+  },
+  "Rules": {
+    "AdmCredentialPair": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Or": [
+              {
+                "Fn::And": [
+                  {
+                    "Fn::Equals": [
+                      {
+                        "Ref": "AdmClientId"
+                      },
+                      ""
+                    ]
+                  },
+                  {
+                    "Fn::Equals": [
+                      {
+                        "Ref": "AdmClientSecret"
+                      },
+                      ""
+                    ]
+                  }
+                ]
+              },
+              {
+                "Fn::And": [
+                  {
+                    "Fn::Not": [
+                      {
+                        "Fn::Equals": [
+                          {
+                            "Ref": "AdmClientId"
+                          },
+                          ""
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "Fn::Not": [
+                      {
+                        "Fn::Equals": [
+                          {
+                            "Ref": "AdmClientSecret"
+                          },
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "Provide both AdmClientId and AdmClientSecret, or leave both empty."
+        }
+      ]
     }
   }
 }
