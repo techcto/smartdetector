@@ -6,6 +6,7 @@ import{defaultSettings}from'./model';
 import{markHistoryPurge,deleteStoredHistory,writeHistory}from'./history-privacy';
 import {markDeviceRemoved,deleteDeviceHistory,devicePrivacyKey} from './device-privacy';
 import {evidenceVisible} from './image-retention';
+import {incidentIndexes,incidentIndexKeys,queryIncidents} from './incident-query';
 
 const tableName=process.env.SMARTDETECTOR_TABLE??'smartdetector-local';
 const client=DynamoDBDocumentClient.from(new DynamoDBClient({endpoint:process.env.SMARTDETECTOR_DYNAMODB_ENDPOINT}),{marshallOptions:{removeUndefinedValues:true}});
@@ -18,9 +19,9 @@ function ensureTable(){
       await client.send(new CreateTableCommand({
         TableName:tableName,
         BillingMode:'PAY_PER_REQUEST',
-        AttributeDefinitions:[{AttributeName:'pk',AttributeType:'S'},{AttributeName:'sk',AttributeType:'S'},{AttributeName:'gsi1pk',AttributeType:'S'},{AttributeName:'gsi1sk',AttributeType:'S'}],
+        AttributeDefinitions:[{AttributeName:'pk',AttributeType:'S'},{AttributeName:'sk',AttributeType:'S'},{AttributeName:'gsi1pk',AttributeType:'S'},{AttributeName:'gsi1sk',AttributeType:'S'},{AttributeName:'tenantId',AttributeType:'S'},{AttributeName:'incidentTime',AttributeType:'S'},{AttributeName:'incidentDevice',AttributeType:'S'}],
         KeySchema:[{AttributeName:'pk',KeyType:'HASH'},{AttributeName:'sk',KeyType:'RANGE'}],
-        GlobalSecondaryIndexes:[{IndexName:'GSI1',KeySchema:[{AttributeName:'gsi1pk',KeyType:'HASH'},{AttributeName:'gsi1sk',KeyType:'RANGE'}],Projection:{ProjectionType:'ALL'}}],
+        GlobalSecondaryIndexes:[{IndexName:'GSI1',KeySchema:[{AttributeName:'gsi1pk',KeyType:'HASH'},{AttributeName:'gsi1sk',KeyType:'RANGE'}],Projection:{ProjectionType:'ALL'}},...incidentIndexes.map(index=>({...index,KeySchema:index.KeySchema.map(key=>({...key}))}))],
       }));
       await client.send(new UpdateTimeToLiveCommand({TableName:tableName,TimeToLiveSpecification:{AttributeName:'ttl',Enabled:true}})).catch(()=>{});
     }catch(error){if(!(error instanceof Error&&error.name==='ResourceInUseException'))throw error}
@@ -113,27 +114,21 @@ export const dynamoStore={
   },
   async putIncident(v:IncidentRecord){
     await ensureTable();
-    await writeHistory(v.tenantId,v.startedAt,{pk:`ORG#${v.tenantId}`,sk:`INCIDENT#${v.incidentId}`,...v});
+    await writeHistory(v.tenantId,v.startedAt,{pk:`ORG#${v.tenantId}`,sk:`INCIDENT#${v.incidentId}`,...v,...incidentIndexKeys(v)});
   },
   async incident(tenant:string,incidentId:string):Promise<IncidentRecord|null>{
     await ensureTable();
     const r=await client.send(new GetCommand({TableName:tableName,Key:{pk:`ORG#${tenant}`,sk:`INCIDENT#${incidentId}`}}));
     return (r.Item as IncidentRecord)??null;
   },
-  async incidents(tenant:string):Promise<IncidentRecord[]>{
-    await ensureTable();
-    const r=await client.send(new QueryCommand({TableName:tableName,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',ExpressionAttributeValues:{':pk':`ORG#${tenant}`,':prefix':'INCIDENT#'}}));
-    return (r.Items??[]) as IncidentRecord[];
+  async incidents(tenant:string,limit=50,days=1):Promise<IncidentRecord[]>{
+    await ensureTable();return (await queryIncidents(client,tableName,tenant,{limit,days})).rows;
   },
-  async searchableIncidents(tenant:string){
-    await ensureTable();const rows:IncidentRecord[]=[];let cursor:Record<string,unknown>|undefined,pages=0;
-    do{const page=await client.send(new QueryCommand({TableName:tableName,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',ExpressionAttributeValues:{':pk':`ORG#${tenant}`,':prefix':'INCIDENT#'},ConsistentRead:true,ExclusiveStartKey:cursor,Limit:1000-rows.length}));rows.push(...(page.Items??[]) as IncidentRecord[]);cursor=page.LastEvaluatedKey;pages++;}while(cursor&&rows.length<1000&&pages<20);
-    return {rows,truncated:!!cursor};
+  async searchableIncidents(tenant:string,days=1){
+    await ensureTable();return queryIncidents(client,tableName,tenant,{limit:1000,days});
   },
-  async incidentsForNode(tenant:string,serverId:string):Promise<IncidentRecord[]>{
-    await ensureTable();
-    const r=await client.send(new QueryCommand({TableName:tableName,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',FilterExpression:'serverId=:sid',ExpressionAttributeValues:{':pk':`ORG#${tenant}`,':prefix':'INCIDENT#',':sid':serverId}}));
-    return (r.Items??[]) as IncidentRecord[];
+  async incidentsForNode(tenant:string,serverId:string,limit=50,days=1):Promise<IncidentRecord[]>{
+    await ensureTable();return (await queryIncidents(client,tableName,tenant,{deviceId:serverId,limit,days})).rows;
   },
   async putEvent(v:SmartDetectorEvent){
     await ensureTable();

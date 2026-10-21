@@ -28,3 +28,7 @@ This template deploys the web/API/worker platform, not a Fire TV client or Ring 
 The [independent MCP package](../../submodules/smartdetector-agentcore/README.md#aws-quickstart) supplies a native AgentCore Runtime template and a separate publishing ECR repository template. Install either through a reviewed CloudFormation change set. The runtime attaches to the existing API by HTTPS and an organization-scoped read-only key; it does not replace the main ECS stack or application data.
 
 Publishing workflows upload container images and template objects only. They require existing publishing repositories and public-read access to the `cloudformation/` assets prefix. Bucket policy, public access configuration and repository provisioning belong to CloudFormation. Import existing resources and preserve unrelated policy statements when bringing them under stack ownership; release scripts must not rewrite infrastructure policies.
+
+## Ordered event index upgrade
+
+Existing stacks must add the two key-only event indexes one at a time and backfill index attributes before deploying indexed readers. Follow [the ordered event migration](../../docs/incident-index-migration.md); preserve the current release and review each CloudFormation change set. Do not replace the table or replay AutoVision jobs.

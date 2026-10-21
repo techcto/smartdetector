@@ -133,6 +133,16 @@
       "Type": "String",
       "Default": "",
       "Description": "Optional same-region Secrets Manager ARN. The entire secret value must be the AutoVision service API key; use the AWS-managed Secrets Manager encryption key."
+    },
+    "IncidentIndexStage": {
+      "Type": "String",
+      "Default": "complete",
+      "AllowedValues": [
+        "none",
+        "organization",
+        "complete"
+      ],
+      "Description": "Existing tables: add indexes one at a time (organization, then complete) before deploying indexed event readers. New stacks use complete."
     }
   },
   "Conditions": {
@@ -190,6 +200,26 @@
             ""
           ]
         }
+      ]
+    },
+    "OrgIncidentIndex": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "IncidentIndexStage"
+            },
+            "none"
+          ]
+        }
+      ]
+    },
+    "DeviceIncidentIndex": {
+      "Fn::Equals": [
+        {
+          "Ref": "IncidentIndexStage"
+        },
+        "complete"
       ]
     }
   },
@@ -447,6 +477,42 @@
           {
             "AttributeName": "gsi1sk",
             "AttributeType": "S"
+          },
+          {
+            "Fn::If": [
+              "OrgIncidentIndex",
+              {
+                "AttributeName": "tenantId",
+                "AttributeType": "S"
+              },
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
+          },
+          {
+            "Fn::If": [
+              "OrgIncidentIndex",
+              {
+                "AttributeName": "incidentTime",
+                "AttributeType": "S"
+              },
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
+          },
+          {
+            "Fn::If": [
+              "DeviceIncidentIndex",
+              {
+                "AttributeName": "incidentDevice",
+                "AttributeType": "S"
+              },
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
           }
         ],
         "KeySchema": [
@@ -475,6 +541,54 @@
             "Projection": {
               "ProjectionType": "ALL"
             }
+          },
+          {
+            "Fn::If": [
+              "OrgIncidentIndex",
+              {
+                "IndexName": "IncidentsByTime",
+                "KeySchema": [
+                  {
+                    "AttributeName": "tenantId",
+                    "KeyType": "HASH"
+                  },
+                  {
+                    "AttributeName": "incidentTime",
+                    "KeyType": "RANGE"
+                  }
+                ],
+                "Projection": {
+                  "ProjectionType": "KEYS_ONLY"
+                }
+              },
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
+          },
+          {
+            "Fn::If": [
+              "DeviceIncidentIndex",
+              {
+                "IndexName": "IncidentsByDevice",
+                "KeySchema": [
+                  {
+                    "AttributeName": "incidentDevice",
+                    "KeyType": "HASH"
+                  },
+                  {
+                    "AttributeName": "incidentTime",
+                    "KeyType": "RANGE"
+                  }
+                ],
+                "Projection": {
+                  "ProjectionType": "KEYS_ONLY"
+                }
+              },
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
           }
         ],
         "TimeToLiveSpecification": {
@@ -577,7 +691,8 @@
                     "dynamodb:DeleteItem",
                     "dynamodb:Query",
                     "dynamodb:UpdateItem",
-                    "dynamodb:ConditionCheckItem"
+                    "dynamodb:ConditionCheckItem",
+                    "dynamodb:BatchGetItem"
                   ],
                   "Resource": [
                     {

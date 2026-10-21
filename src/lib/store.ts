@@ -31,9 +31,9 @@ export const store={...raw,
   await raw.putIncident({...row,ttl});
  },
  async incident(org:string,id:string){const row=await raw.incident(org,id);return row&&evidenceVisible(row,(await policy(org)).days)?row:null;},
- async incidents(org:string){const {days}=await policy(org);return (await raw.incidents(org)).filter(r=>evidenceVisible(r,days));},
- async incidentsForNode(org:string,id:string){const {days}=await policy(org);return (await raw.incidentsForNode(org,id)).filter(r=>evidenceVisible(r,days));},
- async searchableIncidents(org:string){const {days}=await policy(org),result=await raw.searchableIncidents(org);return {...result,rows:result.rows.filter(r=>evidenceVisible(r,days))};},
+ async incidents(org:string,limit=50){const {days}=await policy(org);return raw.incidents(org,limit,days);},
+ async incidentsForNode(org:string,id:string,limit=50){const {days}=await policy(org);return raw.incidentsForNode(org,id,limit,days);},
+ async searchableIncidents(org:string){const {days}=await policy(org);return raw.searchableIncidents(org,days);},
  async expireEvidence(org:string){await this.expirePlayground(org);return raw.expireEvidence(org,(await policy(org)).days);},
  async putSubscription(row:Subscription){
   await raw.putSubscription(row);

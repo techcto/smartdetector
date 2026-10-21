@@ -18,7 +18,7 @@ export async function POST(req:NextRequest,{params}:{params:Promise<{id:string}>
  try{
   const v=JSON.parse(await readBody(req,131072));
   if(v.action==='preview'){
-   const latest=(await store.incidents(s.orgId)).filter(e=>e.serverId===id).sort((a,b)=>b.startedAt.localeCompare(a.startedAt)).find(e=>eventView(e.payload).preview);
+   const latest=(await store.incidentsForNode(s.orgId,id)).find(e=>eventView(e.payload).preview);
    return NextResponse.json({image:latest?eventView(latest.payload).preview:null,observedAt:latest?.startedAt??null,label:'Last retained event image; not live'},{headers:{'Cache-Control':'no-store'}});
   }
   const config=await ringAccess(s.orgId,d.connectionId),base='https://api.amazonvision.com/v1/devices/'+encodeURIComponent(d.externalId)+'/media/streaming/whep/sessions',secret=process.env.SMARTDETECTOR_SESSION_SECRET??'';
