@@ -133,16 +133,6 @@
       "Type": "String",
       "Default": "",
       "Description": "Optional same-region Secrets Manager ARN. The entire secret value must be the AutoVision service API key; use the AWS-managed Secrets Manager encryption key."
-    },
-    "IncidentIndexStage": {
-      "Type": "String",
-      "Default": "complete",
-      "AllowedValues": [
-        "none",
-        "organization",
-        "complete"
-      ],
-      "Description": "Existing tables: add indexes one at a time (organization, then complete) before deploying indexed event readers. New stacks use complete."
     }
   },
   "Conditions": {
@@ -200,26 +190,6 @@
             ""
           ]
         }
-      ]
-    },
-    "OrgIncidentIndex": {
-      "Fn::Not": [
-        {
-          "Fn::Equals": [
-            {
-              "Ref": "IncidentIndexStage"
-            },
-            "none"
-          ]
-        }
-      ]
-    },
-    "DeviceIncidentIndex": {
-      "Fn::Equals": [
-        {
-          "Ref": "IncidentIndexStage"
-        },
-        "complete"
       ]
     }
   },
@@ -479,40 +449,16 @@
             "AttributeType": "S"
           },
           {
-            "Fn::If": [
-              "OrgIncidentIndex",
-              {
-                "AttributeName": "tenantId",
-                "AttributeType": "S"
-              },
-              {
-                "Ref": "AWS::NoValue"
-              }
-            ]
+            "AttributeName": "tenantId",
+            "AttributeType": "S"
           },
           {
-            "Fn::If": [
-              "OrgIncidentIndex",
-              {
-                "AttributeName": "incidentTime",
-                "AttributeType": "S"
-              },
-              {
-                "Ref": "AWS::NoValue"
-              }
-            ]
+            "AttributeName": "incidentTime",
+            "AttributeType": "S"
           },
           {
-            "Fn::If": [
-              "DeviceIncidentIndex",
-              {
-                "AttributeName": "incidentDevice",
-                "AttributeType": "S"
-              },
-              {
-                "Ref": "AWS::NoValue"
-              }
-            ]
+            "AttributeName": "incidentDevice",
+            "AttributeType": "S"
           }
         ],
         "KeySchema": [
@@ -543,52 +489,36 @@
             }
           },
           {
-            "Fn::If": [
-              "OrgIncidentIndex",
+            "IndexName": "IncidentsByTime",
+            "KeySchema": [
               {
-                "IndexName": "IncidentsByTime",
-                "KeySchema": [
-                  {
-                    "AttributeName": "tenantId",
-                    "KeyType": "HASH"
-                  },
-                  {
-                    "AttributeName": "incidentTime",
-                    "KeyType": "RANGE"
-                  }
-                ],
-                "Projection": {
-                  "ProjectionType": "KEYS_ONLY"
-                }
+                "AttributeName": "tenantId",
+                "KeyType": "HASH"
               },
               {
-                "Ref": "AWS::NoValue"
+                "AttributeName": "incidentTime",
+                "KeyType": "RANGE"
               }
-            ]
+            ],
+            "Projection": {
+              "ProjectionType": "KEYS_ONLY"
+            }
           },
           {
-            "Fn::If": [
-              "DeviceIncidentIndex",
+            "IndexName": "IncidentsByDevice",
+            "KeySchema": [
               {
-                "IndexName": "IncidentsByDevice",
-                "KeySchema": [
-                  {
-                    "AttributeName": "incidentDevice",
-                    "KeyType": "HASH"
-                  },
-                  {
-                    "AttributeName": "incidentTime",
-                    "KeyType": "RANGE"
-                  }
-                ],
-                "Projection": {
-                  "ProjectionType": "KEYS_ONLY"
-                }
+                "AttributeName": "incidentDevice",
+                "KeyType": "HASH"
               },
               {
-                "Ref": "AWS::NoValue"
+                "AttributeName": "incidentTime",
+                "KeyType": "RANGE"
               }
-            ]
+            ],
+            "Projection": {
+              "ProjectionType": "KEYS_ONLY"
+            }
           }
         ],
         "TimeToLiveSpecification": {
