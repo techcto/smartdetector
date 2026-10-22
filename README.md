@@ -37,11 +37,11 @@ Inspired by Ring and Prime Video, SmartDetector treats cameras like collections 
 
 **Ring supplies the activity. SmartDetector organizes it. Vega brings it to your screen.**
 
-![SmartDetector camera and recent-event rails](docs/images/vega-playwright/1280-home.png)
+![SmartDetector TV interface with privacy-safe illustrative camera imagery](docs/demo-assets/gallery/07-tv-devices.png)
 
-*The shared React UI, captured with Playwright using isolated test fixtures. This is a browser preview, not native Vega footage or evidence of real camera analysis.*
+*UI captured on a physical Vega Fire TV. Camera imagery is replaced with similar AI-generated scenes for privacy; the interface is unchanged.*
 
-[Watch the UI walkthrough](docs/images/vega-playwright/1280-walkthrough.webm) · [Capture details](docs/images/vega-playwright/README.md)
+[Watch the browser UI walkthrough](docs/images/vega-playwright/1280-walkthrough.webm) · [Native capture details](docs/images/vega-native/README.md)
 
 ## From a moment at the door to a clearer picture
 
@@ -51,9 +51,15 @@ Inspired by Ring and Prime Video, SmartDetector treats cameras like collections 
 4. **Review the evidence.** Step through sampled frames and inspect available detections and AI context.
 5. **Stay in control.** Use location-scoped access, revocable read-only displays, data purge and account deletion. Saved event/image retention defaults to 24 hours.
 
-![QR pairing on SmartDetector Console](docs/images/vega-playwright/1280-pairing.png)
+![QR pairing on SmartDetector Console](docs/demo-assets/gallery/06-tv-qr.png)
 
 *Playwright capture of the pairing interface. The displayed code is a nonfunctional fixture; use the code on your own running app.*
+
+![SmartDetector web dashboard with privacy-safe camera imagery](docs/demo-assets/gallery/02-dashboard.png)
+
+*The same connected-device dashboard on the web, with similar AI-generated camera scenes substituted for privacy.*
+
+[View the complete screenshot gallery](docs/demo-assets/gallery/README.md)
 
 The app also includes foreground alerts. An ADM background receiver and actionable system-popup integration are implemented; cross-app popup/image behavior remains a physical-device verification item. Native live video is not implemented: live-view links use the web console. We keep those boundaries explicit rather than presenting planned capabilities as finished features.
 

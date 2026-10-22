@@ -1,5 +1,11 @@
 # SmartDetector Console for Vega
 
+![SmartDetector Vega camera and event rails](../../docs/demo-assets/gallery/07-tv-devices.png)
+
+*Physical-TV interface with similar AI-generated camera imagery for privacy. UI pixels are preserved; photos are illustrative, not recorded evidence.*
+
+[Screenshot gallery](../../docs/demo-assets/gallery/README.md) · [Judge’s field guide](../../docs/HACKATHON-FIELD-GUIDE.md)
+
 Integration scope: SmartDetector’s own Bedrock feature summarizes incident observations. AutoVision, where mentioned below, is an optional, separately developed external detection add-on outside this hackathon submission. Its connector is free to add; external service configuration, quotas and costs still apply. Steps that invoke that add-on require it and are not evidence of native SmartDetector image detection.
 
 Native React Native client, separate from the Next.js web console. Uses the Amazon SDK's React Native 0.72 `helloWorld-rn72` template, not a WebView or Android APK.
@@ -49,6 +55,8 @@ Security review remains required before Appstore publication. The RN 0.72 produc
 ## Browser and mobile UI preview
 
 ### TV interaction and QR pairing
+
+Native RN 0.72 uses a resolution-aware viewport to map the 960×540 logical TV layout onto the actual display surface. Styles, card/scroll calculations and focusable controls share those coordinates; physical pixels are not assumed to equal browser CSS pixels. The browser/mobile preview uses its own unscaled adapter. Check the actual TV after runtime or display-resolution changes: browser screenshots alone cannot verify native sizing.
 
 The shared native/web screens use camera cards like shows and camera events like episodes. Home stacks horizontal camera/activity rails: Left/Right changes the focused card; Up/Down moves between rows; Back returns through event → camera → home. Large libraries may scroll vertically between rows. Pairing, event review, search, settings and confirmation controls are designed for a single TV viewport; mobile may scroll vertically. Live video still opens the web console, not a native player.
 

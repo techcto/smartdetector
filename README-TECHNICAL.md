@@ -24,6 +24,10 @@ SmartDetector’s own Bedrock integration summarizes incident observations; it i
 
 ## Try SmartDetector
 
+![SmartDetector connected-device dashboard](docs/demo-assets/gallery/02-dashboard.png)
+
+*Captured web interface with privacy-safe AI replacement photos; the UI is unchanged. [Full screenshot gallery](docs/demo-assets/gallery/README.md).*
+
 For developer registration, the official Ring Playground, local token connection, and production provider linking, see [Ring developer testing](docs/ring-developer-testing.md).
 
 Privacy policy, signed-in deletion options, and 24-hour default event-image retention are documented in [Privacy and deletion](docs/privacy-and-deletion.md). Longer retention requires an active paid subscription and an explicit administrator choice.

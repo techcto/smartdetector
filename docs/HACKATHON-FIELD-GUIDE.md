@@ -10,13 +10,13 @@ Quick links: [Create account](https://smartdetector.com/signup) · [Sign in](htt
 
 ## Take a look before you start
 
-![SmartDetector QR pairing screen captured by Playwright](images/vega-playwright/1280-pairing.png)
+![SmartDetector QR pairing screen captured by Playwright](demo-assets/gallery/06-tv-qr.png)
 
 *Pair on your phone or computer; browse on the TV. Actual shared React UI captured in Playwright at 1280 × 720, using isolated test responses.*
 
 [Watch the browser UI walkthrough — WebM](images/vega-playwright/1280-walkthrough.webm) · [Capture details and reproduction](images/vega-playwright/README.md)
 
-These are browser-preview captures, not native Vega recordings. Camera names, timestamps, events and blank image fixtures are test data. They demonstrate the interface, not Ring delivery or real inference. The required hackathon video must separately show the native app on Vega hardware or its simulator.
+The pairing screen and linked browser walkthrough use isolated test responses. Gallery cards below include native physical-TV interfaces and browser previews, with AI-generated replacement camera imagery for privacy. Captions distinguish them; illustrative photos do not establish Ring delivery or real inference. [View the complete gallery](demo-assets/gallery/README.md). The required hackathon video must separately show the native app on Vega hardware or its simulator.
 
 ## Step 1 — Launch the Vega simulator
 
@@ -74,9 +74,9 @@ Ring’s own camera/cloud subscription requirements are separate from SmartDetec
 
 **You should see:** the Devices screen. An empty location is normal until you connect cameras. A TV display is a viewer, not a camera, so it does not produce its own image or motion events.
 
-![Camera and event rails in the shared React interface](images/vega-playwright/1280-home.png)
+![Camera and event rails with illustrative camera imagery](demo-assets/gallery/07-tv-devices.png)
 
-*The camera library uses horizontal rails. Test fixtures shown; these are not private household cameras.*
+*Native physical-TV interface with similar AI-generated camera scenes substituted for privacy. These illustrations are not recorded evidence.*
 
 Pairing codes last ten minutes. Get a fresh code if necessary. Display authorization is held in app memory: after restarting the app, pair again. You can revoke the display from the website’s Devices section.
 
@@ -104,13 +104,13 @@ Ring currently documents US-located test devices and an active Ring Protection p
 
 **Success:** the same camera event and retained evidence are visible on the website and the paired TV. Opening live view alone is not a motion event. Empty results mean no matching retained evidence—not proof that nothing happened.
 
-![Frame review controls in the shared React interface](images/vega-playwright/1280-event.png)
+![Frame review controls with illustrative camera imagery](demo-assets/gallery/09-tv-event.png)
 
-*Review sampled frames and available evidence. This UI capture uses blank test images and does not represent analyzed footage.*
+*Native frame-review interface; the photo is an AI-generated privacy-safe illustration, not retained evidence or a new inference result.*
 
-![Saved-event search in the shared React interface](images/vega-playwright/1280-results.png)
+![Saved-event search in the shared React interface](demo-assets/gallery/10-tv-search.png)
 
-*Search existing retained evidence, then select a result to review it. Search results shown are isolated fixtures.*
+*Search existing retained evidence, then select a result to review it. This browser fixture uses AI-generated illustrative thumbnails.*
 
 ## What to look for in the Vega app
 

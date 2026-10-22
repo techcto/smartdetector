@@ -1,0 +1,38 @@
+[
+  {
+    "image": "01-website.png",
+    "photoRegions": 1,
+    "uiOutsidePhotoAndCaption": "pixel-identical",
+    "bytes": 428239
+  },
+  {
+    "image": "02-dashboard.png",
+    "photoRegions": 5,
+    "uiOutsidePhotoAndCaption": "pixel-identical",
+    "bytes": 823032
+  },
+  {
+    "image": "07-tv-devices.png",
+    "photoRegions": 10,
+    "uiOutsidePhotoAndCaption": "pixel-identical",
+    "bytes": 876306
+  },
+  {
+    "image": "08-tv-camera.png",
+    "photoRegions": 1,
+    "uiOutsidePhotoAndCaption": "pixel-identical",
+    "bytes": 371619
+  },
+  {
+    "image": "09-tv-event.png",
+    "photoRegions": 1,
+    "uiOutsidePhotoAndCaption": "pixel-identical",
+    "bytes": 565810
+  },
+  {
+    "image": "10-tv-search.png",
+    "photoRegions": 5,
+    "uiOutsidePhotoAndCaption": "pixel-identical",
+    "bytes": 176443
+  }
+]
