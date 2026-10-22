@@ -69,18 +69,36 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > existing-draft.txt 2>/dev/null; then
-            if [ "$(<existing-draft.txt)" != true ]; then
-              gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fx smartdetectorconsole_armv7.vpkg
-              gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fx smartdetectorconsole_x86_64.vpkg
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          release_id="$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq ".[] | select(.tag_name == \"$RELEASE_TAG\") | .id")"
+          if [ -n "$release_id" ]; then
+            [[ "$release_id" =~ ^[0-9]+$ ]]
+            if [ "$(gh api "repos/$GH_REPO/releases/$release_id" --jq '.draft')" != true ]; then
+              gh api "repos/$GH_REPO/releases/$release_id/assets" --jq '.[].name' > published-assets.txt
+              for asset in smartdetectorconsole_armv7.vpkg smartdetectorconsole_x86_64.vpkg SHA256SUMS sdk-version.txt native-package-lock.json security-audit.json smartdetector-vega-source.tar.gz; do
+                grep -Fx "$asset" published-assets.txt
+              done
               echo 'Published app release already exists; leaving assets unchanged.'
               exit 0
             fi
           else
-            gh release create "$RELEASE_TAG" --verify-tag --draft --title "SmartDetector Vega $RELEASE_TAG" --notes 'Two native Release packages, both connected to https://smartdetector.com without Docker or Metro: smartdetectorconsole_x86_64.vpkg for the Ubuntu Vega emulator, and smartdetectorconsole_armv7.vpkg for supported physical Vega Fire TV devices. Follow the judge field guide. Native dependency audit evidence is included; a successful build is not Appstore certification.'
+            gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > /dev/null
+            release_id="$(gh api --method POST "repos/$GH_REPO/releases" -f tag_name="$RELEASE_TAG" -F draft=true -f name="SmartDetector Vega $RELEASE_TAG" -f body='Two native Release packages connected to https://smartdetector.com: x86_64 for the Ubuntu Vega emulator and ARMv7 for supported Vega Fire TV devices. Setup: https://github.com/techcto/smartdetector/blob/main/docs/HACKATHON-FIELD-GUIDE.md. Native dependency audit evidence is included; a build is not Appstore certification.' --jq '.id')"
           fi
-          gh release upload "$RELEASE_TAG" --clobber smartdetectorconsole_armv7.vpkg smartdetectorconsole_x86_64.vpkg SHA256SUMS sdk-version.txt native-package-lock.json security-audit.json smartdetector-vega-source.tar.gz
-          release_id="$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" --jq '.id')"
+          [[ "$release_id" =~ ^[0-9]+$ ]]
+          for asset in smartdetectorconsole_armv7.vpkg smartdetectorconsole_x86_64.vpkg SHA256SUMS sdk-version.txt native-package-lock.json security-audit.json smartdetector-vega-source.tar.gz; do
+            test -s "$asset"
+            asset_id="$(gh api "repos/$GH_REPO/releases/$release_id/assets" --jq ".[] | select(.name == \"$asset\") | .id")"
+            if [ -n "$asset_id" ]; then
+              [[ "$asset_id" =~ ^[0-9]+$ ]]
+              gh api --method DELETE "repos/$GH_REPO/releases/assets/$asset_id"
+            fi
+            curl --fail --silent --show-error --request POST \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header 'Content-Type: application/octet-stream' \
+              --data-binary "@$asset" \
+              "https://uploads.github.com/repos/$GH_REPO/releases/$release_id/assets?name=$asset" > /dev/null
+          done
           gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -F draft=false -f make_latest=legacy
   package:
     needs: source

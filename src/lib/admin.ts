@@ -6,6 +6,7 @@ import {listSettings,providers,removeSetting} from './providers';
 import {listApiKeys,revokeApiKey} from './api-keys';
 import {listPeople,removePerson} from './people';
 import {discardRingLinks} from './ring-link';
+import {stripe} from './stripe';
 import type {Node,Organization,SmartDetectorUser} from './model';
 export const saasMode=()=>process.env.SMARTDETECTOR_DEPLOYMENT_MODE==='saas';
 // Layouts are not re-rendered on every navigation, so each admin page calls this itself.
@@ -25,14 +26,28 @@ export async function directoryUsers(){
 }
 export const adminDate=(v?:string)=>v&&Number.isFinite(Date.parse(v))?new Date(v).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}):'—';
 // Deletion follows Cloud's admin console: show what goes with the record, confirm by typing DELETE, then remove it for real.
-// Anything that would silently break billing or the operator's own workspace is refused instead (HTTP 409).
+// Billing is canceled before destructive writes; the operator workspace is protected.
 export class DeletionBlocked extends Error{}
 export type DeletionImpact={name:string;type:'organization'|'user';blocker:string|null;subtext:string;related:{name:string;items:string[]}[]};
 const count=(n:number,noun:string)=>n?[`${n} ${noun}${n===1?'':'s'}`]:[];
 async function organizationBlocker(org:Organization){
  if(org.id===await store.singleDeploymentOrgId())return 'The operator workspace cannot be deleted.';
- if((await store.subscriptions(org.id)).some(s=>s.stripeSubscriptionId&&s.status!=='canceled'))return `${org.name} has a Stripe subscription that is not canceled. Cancel it from the location's billing page first so billing stops.`;
+ if(!process.env.STRIPE_SECRET_KEY&&(await store.subscriptions(org.id)).some(s=>s.stripeSubscriptionId&&s.status!=='canceled'))return `${org.name} has a Stripe subscription, but billing is unavailable. Please try again when billing is restored.`;
  return null;
+}
+async function cancelLocationBilling(orgId:string){
+ const subscriptions=(await store.subscriptions(orgId)).filter(s=>s.stripeSubscriptionId&&s.status!=='canceled');
+ if(!subscriptions.length)return;
+ try{
+  const client=stripe();
+  for(const subscription of subscriptions){
+   const current=await client.subscriptions.retrieve(subscription.stripeSubscriptionId!);
+   if(current.metadata.orgId&&current.metadata.orgId!==orgId)throw Error('Subscription location mismatch');
+   const canceled=current.status==='canceled'?current:await client.subscriptions.cancel(current.id,{invoice_now:false,prorate:false});
+   if(canceled.status!=='canceled')throw Error('Cancellation not confirmed');
+   await store.putSubscription({...subscription,status:'canceled',updatedAt:new Date().toISOString()});
+  }
+ }catch{throw new DeletionBlocked('Unable to confirm subscription cancellation. Deletion has not completed; please retry. Any subscriptions already canceled will stay canceled.');}
 }
 // Members whose only locations are being deleted lose their accounts too: without a location they can neither
 // sign in nor be found in the admin directory.
@@ -47,12 +62,13 @@ async function lastMembers(orgIds:string[],exceptUserId?:string){
 export async function organizationDeletion(id:string):Promise<DeletionImpact|null>{
  const org=await store.organizationById(id);if(!org)return null;
  const [members,last,nodes,keys,connections,people,blocker]=await Promise.all([store.membersOfOrg(id),lastMembers([id]),store.nodes(id),listApiKeys(id),listSettings(id),listPeople(id),organizationBlocker(org)]);
- return {name:org.name,type:'organization',blocker,subtext:'Members lose access immediately, and members who belong to no other location are deleted with it. Devices, saved events and images, people, integrations, API keys and settings are deleted too. Ring recordings and separate AutoVision jobs are not affected.',related:[{name:'Accounts deleted',items:last.map(u=>u.displayName)},{name:'Members removed (accounts kept)',items:members.filter(m=>!last.some(u=>u.id===m.user.id)).map(m=>m.user.displayName)},{name:'Devices',items:nodes.map(n=>n.displayName)},{name:'Also deleted',items:[...count(connections.length,'integration'),...count(keys.length,'API key'),...count(people.length,'person record')]}]};
+ return {name:org.name,type:'organization',blocker,subtext:'Members lose access immediately, and members who belong to no other location are deleted with it. Devices, saved events and images, people, integrations, API keys and settings are deleted too. Paid subscriptions for this location are canceled immediately; unused paid time is forfeited, with no automatic prorated refund. Ring recordings and separate AutoVision jobs are not affected.',related:[{name:'Accounts deleted',items:last.map(u=>u.displayName)},{name:'Members removed (accounts kept)',items:members.filter(m=>!last.some(u=>u.id===m.user.id)).map(m=>m.user.displayName)},{name:'Devices',items:nodes.map(n=>n.displayName)},{name:'Also deleted',items:[...count(connections.length,'integration'),...count(keys.length,'API key'),...count(people.length,'person record')]}]};
 }
 // Access and outside connections go first (API keys, Ring and Fire TV links), then saved data, then the organization itself.
 export async function deleteOrganization(id:string){
  const org=await store.organizationById(id);if(!org)return false;
  const blocker=await organizationBlocker(org);if(blocker)throw new DeletionBlocked(blocker);
+ await cancelLocationBilling(id);
  const members=await store.membersOfOrg(id);
  for(const key of await listApiKeys(id))await revokeApiKey(id,key.id);
  for(const connection of await listSettings(id)){await discardRingLinks(id,connection.id);await removeSetting(id,connection.id)}
@@ -77,11 +93,13 @@ async function userPlan(id:string){
 export async function userDeletion(id:string):Promise<DeletionImpact|null>{
  const plan=await userPlan(id);if(!plan)return null;
  const last=await lastMembers(plan.remove.map(o=>o.id),id);
- return {name:plan.user.displayName,type:'user',blocker:plan.blocker,subtext:'Deleting this user also deletes the locations they own that nobody else uses, with their devices, saved events, people, integrations and API keys, and the accounts of members who belong to no other location. Shared locations they own pass to another active member.',related:[{name:'Locations deleted',items:plan.remove.map(o=>o.name)},{name:'Ownership transferred',items:plan.transfer.map(t=>`${t.org.name} → ${t.to.displayName}`)},{name:'Memberships removed',items:plan.memberships.filter(m=>!plan.remove.some(o=>o.id===m.org.id)).map(m=>m.org.name)},{name:'Member accounts deleted',items:last.map(u=>u.displayName)}]};
+ return {name:plan.user.displayName,type:'user',blocker:plan.blocker,subtext:'Deleting this user also deletes the locations they own that nobody else uses, with their devices, saved events, people, integrations and API keys, and the accounts of members who belong to no other location. Shared locations they own pass to another active member and keep their subscriptions. Subscriptions for deleted locations are canceled immediately; unused paid time is forfeited, with no automatic prorated refund.',related:[{name:'Locations deleted',items:plan.remove.map(o=>o.name)},{name:'Ownership transferred',items:plan.transfer.map(t=>`${t.org.name} → ${t.to.displayName}`)},{name:'Memberships removed',items:plan.memberships.filter(m=>!plan.remove.some(o=>o.id===m.org.id)).map(m=>m.org.name)},{name:'Member accounts deleted',items:last.map(u=>u.displayName)}]};
 }
 export async function deleteUserAccount(id:string){
  const plan=await userPlan(id);if(!plan)return false;
  if(plan.blocker)throw new DeletionBlocked(plan.blocker);
+ // Finish billing before removing memberships so failures preserve account access.
+ for(const org of plan.remove)await cancelLocationBilling(org.id);
  const now=new Date().toISOString();
  for(const {org} of plan.memberships)await store.deleteMembership(org.id,id);
  for(const {org,to} of plan.transfer){
