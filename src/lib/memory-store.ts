@@ -5,7 +5,7 @@ import{defaultSettings}from'./model';
 import{markHistoryPurge,memoryHistoryCutoff}from'./history-privacy';
 import {markDeviceRemoved,assertDeviceHistory} from './device-privacy';
 import {evidenceVisible} from './image-retention';
-type State={orgs:Map<string,Organization>;singletonOrgId?:string;memberships:Map<string,OrgMembership>;nodes:Map<string,Node>;incidents:Map<string,IncidentRecord>;events:Map<string,SmartDetectorEvent[]>;users:Map<string,SmartDetectorUser>;passwords:Map<string,string>;subscriptions:Map<string,Subscription>;settings:Map<string,Settings>};
+type State={orgs:Map<string,Organization>;singletonOrgId?:string;memberships:Map<string,OrgMembership>;nodes:Map<string,Node>;incidents:Map<string,IncidentRecord>;events:Map<string,SmartDetectorEvent[]>;users:Map<string,SmartDetectorUser>;passwords:Map<string,string>;emails?:Map<string,string>;subscriptions:Map<string,Subscription>;settings:Map<string,Settings>};
 const g=globalThis as typeof globalThis&{smartdetectorState?:State};
 export const state:State=g.smartdetectorState??={orgs:new Map(),memberships:new Map(),nodes:new Map(),incidents:new Map(),events:new Map(),users:new Map(),passwords:new Map(),subscriptions:new Map(),settings:new Map()};
 g.smartdetectorState=state;
@@ -62,10 +62,11 @@ export const memoryStore={
   async putEvent(v:SmartDetectorEvent){await assertDeviceHistory(v.tenantId,v.serverId,v.at);if(Date.parse(v.at)<=memoryHistoryCutoff(v.tenantId))throw Error('History was purged');const k=key(v.tenantId,v.serverId),list=state.events.get(k)??[];list.push(v);if(list.length>MAX_EVENTS_PER_NODE)list.shift();state.events.set(k,list)},
   async eventsForNode(tenant:string,serverId:string,limit=200){return(state.events.get(key(tenant,serverId))??[]).slice(-limit).reverse()},
   async userByName(username:string){return[...state.users.values()].find(x=>x.username.toLowerCase()===username.toLowerCase())??null},
+  async createUser(v:SmartDetectorUser,passwordHash:string){const emails=state.emails??=new Map(),email=v.email?.toLowerCase();if(state.users.has(v.id)||(email&&emails.has(email)))return false;if(email)emails.set(email,v.id);state.users.set(v.id,v);state.passwords.set(v.id,passwordHash);return true},
   async userById(id:string){return state.users.get(id)??null},
   async putUser(v:SmartDetectorUser,passwordHash?:string){state.users.set(v.id,v);if(passwordHash)state.passwords.set(v.id,passwordHash)},
   async password(id:string){return state.passwords.get(id)??null},
-  async deleteUser(id:string){state.passwords.delete(id);return state.users.delete(id)},
+  async deleteUser(id:string){const email=state.users.get(id)?.email?.toLowerCase();if(email&&state.emails?.get(email)===id)state.emails.delete(email);state.passwords.delete(id);return state.users.delete(id)},
   async settings(tenant:string){return state.settings.get(tenant)??defaultSettings(tenant)},
   async putSettings(tenant:string,v:Settings){state.settings.set(tenant,v)},
   async products():Promise<Product[]>{return productCatalog();},
