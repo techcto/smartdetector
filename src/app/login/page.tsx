@@ -1,4 +1,3 @@
 import LoginForm from './login-form';
-export default function Login(){return <main className="min-vh-100 d-flex align-items-center justify-content-center"><section className="card g-card login-card"><div className="eyebrow">SmartDetector control plane</div><h1>Understand your environment.</h1><p className="muted">Sign in with an existing account or create your SmartDetector workspace.</p><LoginForm allowSignup={process.env.SMARTDETECTOR_DEPLOYMENT_MODE==='saas'}/></section></main>}
-
-
+const verifyNotices={done:{title:'Email verified',text:'Your email address is confirmed. Sign in to continue.'}};
+export default async function Login({searchParams}:{searchParams:Promise<{verify?:string}>}){const {verify}=await searchParams,notice=verify==='done'?verifyNotices.done:null;return <main className="min-vh-100 d-flex align-items-center justify-content-center"><section className="card g-card login-card"><div className="eyebrow">SmartDetector control plane</div><h1>Understand your environment.</h1><p className="muted">Sign in with an existing account or create your SmartDetector workspace.</p>{notice&&<div className="notice" role="status"><strong>{notice.title}</strong><span>{notice.text}</span></div>}<LoginForm allowSignup={process.env.SMARTDETECTOR_DEPLOYMENT_MODE==='saas'}/></section></main>}
