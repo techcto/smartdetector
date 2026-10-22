@@ -2,16 +2,16 @@
 
 The signed-in console actions live under Settings:
 
-- `/settings/account-deletion`: verified email request to help@solodev.com, not automatic account deletion. Support must verify identity, resolve shared workspace ownership, fulfill the request, and confirm completion. Removing a workspace membership alone is not complete account deletion.
+- `/settings/account-deletion` (also Settings → Delete account): immediate self-service deletion for SaaS members, confirmed by typing DELETE. Locations the user owns that nobody else uses are deleted with the account; shared ones pass to another active member. A location with an uncanceled Stripe subscription blocks deletion until billing is canceled. Root administrators can also delete users and locations from Admin. Removing a workspace membership alone is not account deletion.
 - `/settings/data-deletion`: existing administrator-only purge, protected by same-origin checks and an explicit workspace-specific confirmation. Preserves accounts and devices; excludes separate providers, backups, and optional enrolled face references.
 
-Both pages redirect anonymous visitors to login and return to the selected page afterward. The public privacy policy includes instructions and an email fallback for users who cannot log in. After deployment, Amazon Appstore fields can use:
+Both pages redirect anonymous visitors to login and return to the selected page afterward. The public privacy policy includes the instructions; users who cannot log in reset their password first. After deployment, Amazon Appstore fields can use:
 
 - Privacy policy: `https://smartdetector.com/privacy`
 - Account deletion instructions: `https://smartdetector.com/privacy#account-deletion`
 - Data-only deletion instructions: `https://smartdetector.com/privacy#data-deletion`
 
-Verify these publicly over HTTPS before submitting. Do not describe the email request as instant deletion. The operator must monitor help@solodev.com. Review the Appstore privacy questionnaire against all enabled providers and SDKs, including optional recognition features; temporary collection still counts as collection.
+Verify these publicly over HTTPS before submitting. Review the Appstore privacy questionnaire against all enabled providers and SDKs, including optional recognition features; temporary collection still counts as collection.
 
 ## Retention
 

@@ -27,6 +27,7 @@ export const memoryStore={
     state.singletonOrgId=org.id;
     return org;
   },
+  async singleDeploymentOrgId():Promise<string|null>{return state.singletonOrgId&&state.orgs.has(state.singletonOrgId)?state.singletonOrgId:null},
   async organizationById(id:string){return state.orgs.get(id)??null},
   async organizations(){return[...state.orgs.values()]},
   async putMembership(v:OrgMembership){state.memberships.set(membershipKey(v.orgId,v.userId),v)},
@@ -40,6 +41,14 @@ export const memoryStore={
     return rows.map(membership=>({membership,org:state.orgs.get(membership.orgId)})).filter((r):r is{membership:OrgMembership;org:Organization}=>!!r.org);
   },
   async deleteMembership(orgId:string,userId:string){return state.memberships.delete(membershipKey(orgId,userId))},
+  async putOrganization(v:Organization){state.orgs.set(v.id,v)},
+  async deleteOrganization(id:string){
+    for(const[k,m]of state.memberships)if(m.orgId===id)state.memberships.delete(k);
+    for(const map of[state.nodes,state.incidents,state.events])for(const k of map.keys())if(k.startsWith(id+'\0'))map.delete(k);
+    for(const[k,v]of state.subscriptions)if(v.orgId===id)state.subscriptions.delete(k);
+    state.settings.delete(id);
+    return state.orgs.delete(id);
+  },
   async removeDevice(orgId:string,id:string){await markDeviceRemoved(orgId,id);let deleted=0;for(const [k,row] of state.incidents){if(row.tenantId===orgId&&row.serverId===id){state.incidents.delete(k);deleted++}}const k=key(orgId,id);deleted+=(state.events.get(k)??[]).length;state.events.delete(k);state.nodes.delete(k);deleted+=(await import("./ring-jobs")).deleteMemoryDeviceJobs(orgId,id);await (await import('./people')).prunePersonActivity(orgId);return {deleted}},
   async upsertNode(v:Node){await assertDeviceHistory(v.tenantId,v.serverId);const existing=state.nodes.get(key(v.tenantId,v.serverId));state.nodes.set(key(v.tenantId,v.serverId),{...existing,...v,createdAt:existing?.createdAt??v.createdAt})},
   async nodes(tenant:string){return[...state.nodes.values()].filter(x=>x.tenantId===tenant)},

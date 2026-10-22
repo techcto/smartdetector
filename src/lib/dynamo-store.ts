@@ -11,9 +11,13 @@ import {incidentIndexes,incidentIndexKeys,queryIncidents} from './incident-query
 const tableName=process.env.SMARTDETECTOR_TABLE??'smartdetector-local';
 const client=DynamoDBDocumentClient.from(new DynamoDBClient({endpoint:process.env.SMARTDETECTOR_DYNAMODB_ENDPOINT}),{marshallOptions:{removeUndefinedValues:true}});
 
+// Only a local DynamoDB table is ever created by the app; AWS tables and indexes stay CloudFormation-managed.
+export function isLocalDynamoEndpoint(endpoint=process.env.SMARTDETECTOR_DYNAMODB_ENDPOINT){
+  try{return ['localhost','127.0.0.1','[::1]','smartdetector-dynamodb'].includes(new URL(endpoint??'').hostname)}catch{return false}
+}
 let tableReady:Promise<void>|null=null;
 function ensureTable(){
-  if(!process.env.SMARTDETECTOR_DYNAMODB_ENDPOINT)return Promise.resolve();
+  if(!isLocalDynamoEndpoint())return Promise.resolve();
   if(!tableReady)tableReady=(async()=>{
     try{
       await client.send(new CreateTableCommand({
@@ -59,6 +63,11 @@ export const dynamoStore={
     const finalOrg=await dynamoStore.organizationById(final.Item?.orgId as string);
     return finalOrg??org;
   },
+  async singleDeploymentOrgId():Promise<string|null>{
+    await ensureTable();
+    const pointer=await client.send(new GetCommand({TableName:tableName,Key:{pk:SINGLETON_PK,sk:SINGLETON_SK},ConsistentRead:true}));
+    return typeof pointer.Item?.orgId==='string'?pointer.Item.orgId:null;
+  },
   async organizationById(id:string):Promise<Organization|null>{
     await ensureTable();
     const r=await client.send(new GetCommand({TableName:tableName,Key:{pk:`ORG#${id}`,sk:`ORG#${id}`}}));
@@ -96,6 +105,28 @@ export const dynamoStore={
   async deleteMembership(orgId:string,userId:string){
     await ensureTable();
     await client.send(new DeleteCommand({TableName:tableName,Key:{pk:`ORG#${orgId}`,sk:`MEMBER#${userId}`}}));
+    return true;
+  },
+  async putOrganization(v:Organization){
+    await ensureTable();
+    await client.send(new PutCommand({TableName:tableName,Item:{pk:`ORG#${v.id}`,sk:`ORG#${v.id}`,gsi1pk:'ORG',gsi1sk:`${v.createdAt}#${v.id}`,...v}}));
+  },
+  // Sweeps the whole ORG# partition, so record types added later are covered too. Memberships go first to cut access
+  // immediately; the organization row goes last so an interrupted run stays listed and can be retried.
+  async deleteOrganization(id:string):Promise<boolean>{
+    await ensureTable();
+    const sweep=async(pk:string)=>{
+      const items:Record<string,string>[]=[];let start:Record<string,unknown>|undefined;
+      do{const r=await client.send(new QueryCommand({TableName:tableName,KeyConditionExpression:'pk=:pk',ExpressionAttributeValues:{':pk':pk},ProjectionExpression:'pk,sk,serverId',ExclusiveStartKey:start,ConsistentRead:true}));items.push(...(r.Items??[]) as Record<string,string>[]);start=r.LastEvaluatedKey}while(start);
+      return items;
+    };
+    const rank=(sk:string)=>sk.startsWith('MEMBER#')?0:sk===`ORG#${id}`?2:1;
+    const items=(await sweep(`ORG#${id}`)).sort((a,b)=>rank(a.sk)-rank(b.sk));
+    if(!items.some(v=>v.sk===`ORG#${id}`))return false;
+    for(const item of items){
+      if(item.sk.startsWith('NODE#'))for(const event of await sweep(`ORG#${id}#NODE#${item.serverId}`))await client.send(new DeleteCommand({TableName:tableName,Key:{pk:event.pk,sk:event.sk}}));
+      await client.send(new DeleteCommand({TableName:tableName,Key:{pk:item.pk,sk:item.sk}}));
+    }
     return true;
   },
   async upsertNode(v:Node){

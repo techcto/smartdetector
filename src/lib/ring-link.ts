@@ -21,6 +21,8 @@ async function pending(orgId:string,connectionId:string){
  for(const r of rows??[]){if(r.ttl*1000>Date.now())active.push(r);else await erase(r);}
  return active;
 }
+// Organization deletion: drop pending authorizations, with their encrypted tokens, instead of waiting for the TTL.
+export async function discardRingLinks(orgId:string,connectionId:string){for(const row of await pending(orgId,connectionId))await erase(row)}
 async function erase(row:Pending){if(process.env.SMARTDETECTOR_TABLE)await db.send(new DeleteCommand({TableName:process.env.SMARTDETECTOR_TABLE,Key:{pk:row.pk,sk:row.sk}}));else memory.delete(row.pk+row.sk);}
 async function tokenRequest(fields:Record<string,string>,fetcher:typeof fetch):Promise<Tokens>{
  const r=await fetcher('https://oauth.ring.com/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(fields),redirect:'error',signal:AbortSignal.timeout(15000)});
