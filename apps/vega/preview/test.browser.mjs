@@ -1,6 +1,11 @@
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+    ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+    : {}),
+});
 const image =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
 try {
@@ -10,7 +15,11 @@ try {
     { width: 1920, height: 1080 },
     { width: 390, height: 844 },
   ]) {
-    const page = await browser.newPage({ viewport }),
+    if (process.env.CAPTURE_WIDTH && viewport.width !== Number(process.env.CAPTURE_WIDTH)) continue;
+    const page = await browser.newPage({
+        viewport,
+        ...(process.env.VIDEO_DIR ? { recordVideo: { dir: process.env.VIDEO_DIR, size: viewport } } : {}),
+      }),
       errors = [];
     let approved = false,
       empty = false,
@@ -198,7 +207,12 @@ try {
         viewport.height +
         ": QR, auto approval, rails, device, event, search, settings, disconnect passed"
     );
+    const video = page.video();
     await page.close();
+    if (video) {
+      await video.saveAs(process.env.VIDEO_DIR + "/" + viewport.width + "-walkthrough.webm");
+      await video.delete();
+    }
   }
 } finally {
   await browser.close();

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+<title id="title">SmartDetector: from camera event to your TV</title><desc id="desc">Launch Vega, pair your account, connect an authorized Ring camera, then review analyzed events on TV. Illustrated workflow, not a screenshot.</desc>
+<rect width="1200" height="360" rx="24" fill="#092539"/>
+<text x="42" y="62" fill="#ffffff" font-family="sans-serif" font-size="30" font-weight="700">Your cameras. Your context. Your TV.</text>
+<text x="42" y="96" fill="#b8d9e9" font-family="sans-serif" font-size="17">SmartDetector Console · Native React Native for Vega OS</text>
+<g font-family="sans-serif">
+<rect x="40" y="134" width="258" height="176" rx="16" fill="#153c52"/><text x="60" y="172" fill="#53d9d0" font-size="16">01 / LAUNCH</text><text x="60" y="210" fill="white" font-size="24" font-weight="700">Open Vega</text><text x="60" y="244" fill="#cce3ee" font-size="16">Simulator or physical TV</text><text x="60" y="270" fill="#cce3ee" font-size="16">Use the matching package</text>
+<rect x="328" y="134" width="258" height="176" rx="16" fill="#153c52"/><text x="348" y="172" fill="#53d9d0" font-size="16">02 / PAIR</text><text x="348" y="210" fill="white" font-size="24" font-weight="700">Scan. Sign in. Approve.</text><text x="348" y="244" fill="#cce3ee" font-size="16">Your password stays off TV</text><text x="348" y="270" fill="#cce3ee" font-size="16">Choose your location</text>
+<rect x="616" y="134" width="258" height="176" rx="16" fill="#153c52"/><text x="636" y="172" fill="#53d9d0" font-size="16">03 / CONNECT</text><text x="636" y="210" fill="white" font-size="24" font-weight="700">Authorize Ring</text><text x="636" y="244" fill="#cce3ee" font-size="16">Staging tester access available</text><text x="636" y="270" fill="#cce3ee" font-size="16">Only cameras you approve</text>
+<rect x="904" y="134" width="256" height="176" rx="16" fill="#007eb8"/><text x="924" y="172" fill="#dcffff" font-size="16">04 / EXPLORE</text><text x="924" y="210" fill="white" font-size="24" font-weight="700">Review the moment</text><text x="924" y="244" fill="white" font-size="16">Cameras · Frames · Search</text><text x="924" y="270" fill="white" font-size="16">Remote-friendly event browsing</text>
+</g></svg>

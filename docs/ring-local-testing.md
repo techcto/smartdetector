@@ -1,5 +1,7 @@
 # Test your Ring account locally
 
+Integration scope: SmartDetector’s own Bedrock feature summarizes incident observations. AutoVision, where mentioned below, is an optional, separately developed external detection add-on outside this hackathon submission. Its connector is free to add; external service configuration, quotas and costs still apply. Steps that invoke that add-on require it and are not evidence of native SmartDetector image detection.
+
 SmartDetector uses **Ring-initiated, one-way account linking**. Start account linking from your Ring developer app's staging/testing workflow; the invitation-only partner-initiated OAuth flow is not used.
 
 ## Start SmartDetector and an HTTPS tunnel

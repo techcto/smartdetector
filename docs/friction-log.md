@@ -1,6 +1,6 @@
 # SmartDetector developer friction log
 
-Record reproducible friction as it occurs. Entries describe observed development issues, not hypothetical failures or claims of contest eligibility. Dates use America/New_York.
+Record reproducible friction as it occurs. Entries describe observed development issues, not hypothetical failures or claims of contest eligibility. Dates use America/New_York. References to AutoVision describe a separately developed optional external add-on, not work claimed for this hackathon. Historical observations are retained as recorded.
 
 ## AWS SDK dependency installation on October 9 2026
 
@@ -42,8 +42,6 @@ Record reproducible friction as it occurs. Entries describe observed development
 - **Workaround used:** Keyboard dictation when supported, opt-in browser mic where available, typed fallback, and transcript review before submission.
 - **Actionable suggestion:** Publish a Fire TV web capability matrix/sample for keyboard dictation, remote mic limitations, permissions and fallbacks by runtime/device.
 
-## Entry format
-
 ## System notifications versus RN runtime on October 21 2026
 
 - **Task attempted:** Notify a viewer of a camera event while another TV app plays a movie, then return to SmartDetector.
@@ -55,8 +53,6 @@ Record reproducible friction as it occurs. Entries describe observed development
 - **Actionable suggestion:** Publish a supported RN 0.83 equivalent and an end-to-end Vega example covering ADM, notification privileges, opt-out, authenticated navigation and physical-TV playback. State renderer/privilege restrictions next to the API installation instructions.
 - **Sources:** [Release notes](https://developer.amazon.com/docs/vega/0.24/vega-release-notes), [notifications](https://developer.amazon.com/docs/vega-api/0.24/expo-notifications), [ADM](https://developer.amazon.com/docs/vega-api/0.24/README.amazon-devices_kepler-amazon-device-messaging).
 
-## WSL setup and credential storage on October 21 2026
-
 ## Package version and build number on October 21 2026
 
 - **Task attempted:** Update the existing SmartDetector Console on a physical Vega TV without uninstalling it.
@@ -67,7 +63,7 @@ Record reproducible friction as it occurs. Entries describe observed development
 - **Workaround used:** Package build number 3, keeping version 0.1.16. The normal update and launch succeeded under com.smartdetector.console; no forced downgrade or uninstall was used. Release CI already uses its increasing workflow run number.
 - **Actionable suggestion:** Include installed and candidate semantic/build versions in the refusal and clarify build-number ordering in the installation guide.
 
-## WSL setup and credential storage details
+## WSL setup and credential storage on October 21 2026
 
 - **Task attempted:** Build, simulate and install the native console from Ubuntu under WSL.
 - **Steps taken:** Install missing runtime libraries, enable KVM access, launch the virtual device, then authenticate the Vega CLI for the physical TV.
@@ -86,6 +82,38 @@ Record reproducible friction as it occurs. Entries describe observed development
 - **Severity:** Medium; stream testing is possible, but event-driven integration coverage is incomplete.
 - **Workaround used:** Clearly distinguish real-frame Playground analysis from Ring webhook testing. Validate production webhook behavior separately using an authorized real camera; never label a local analysis as a received Ring motion.
 - **Actionable suggestion:** Provide signed development webhook fixtures and a documented scenario linking event delivery, media readiness and stable device identifiers.
+
+## Release process remains alive after successful packaging on October 22 2026
+
+- **Task attempted:** Publish the native Vega Console package from a clean GitHub-hosted Ubuntu runner.
+- **Steps taken:** Run the pinned SDK Docker build for v0.1.17. Observe the native package creation, `vega vtbuild exited with code 0` and `build-vega completed`, then wait for artifact upload.
+- **Expected result:** The command exits and the workflow uploads the `.vpkg` immediately after packaging.
+- **Actual result:** The command remained active after completion; the operator cancelled the workflow after 2h 13m 8s. Artifact upload had not run. The application container release succeeded independently.
+- **Severity:** High for release delivery; no production outage or data loss observed.
+- **Workaround used:** Explicitly pass `CI=true` into the Docker container, add reusable SDK BuildKit layers and cap the package job at 30 minutes. The same full local build exited normally; v0.1.18 subsequently completed the native workflow in 16m 8s, including upload. The specific retained handle was not identified, so noninteractive mode is a successful observed mitigation, not a proven SDK root cause.
+- **Actionable suggestion:** Provide a headless CI example that explicitly forwards CI mode into Docker, terminates cleanly after multi-entrypoint bundling and demonstrates artifact export. Print phase timings and document expected process shutdown behavior.
+- **Evidence:** [release workflow](../.github/workflows/release-vega.yml), [Docker build script](../apps/vega/scripts/build-docker.sh), submitted revision `efd0760`, tags `v0.1.17` and `v0.1.18`. Capture the successful run URL with the final submission evidence.
+
+## Clean-container source dependencies on October 22 2026
+
+- **Task attempted:** Run Vega source tests inside the release Docker container.
+- **Steps taken:** Bind the source read-only and invoke `npm test` before installing that directory's dependencies.
+- **Expected result:** QR pairing tests import their pinned QR encoder.
+- **Actual result:** `ERR_MODULE_NOT_FOUND` for `qrcode-generator`; installing dependencies in a separate generated SDK project did not install them for source tests.
+- **Severity:** Medium; blocked packaging before compilation.
+- **Workaround used:** Run `npm ci` before source tests with a dedicated Linux `node_modules` volume. All ten source tests passed in a clean Node 22 container; a full Docker native build also passed.
+- **Actionable suggestion:** Validate source-test and generated-project dependency installation independently in the release workflow. This was a project build-script omission, not a Ring or Vega API defect.
+
+## Browser preview capture setup on October 22 2026
+
+- **Task attempted:** Capture current shared-screen screenshots and a browser walkthrough for the public field guide.
+- **Steps taken:** Launch host Chromium; then run the existing Playwright checks against the local preview container.
+- **Expected result:** Repeatable sanitized screenshots/video without production camera access.
+- **Actual result:** Host Chromium lacked `libnspr4.so`; the older preview image lacked the new browser notification adapter. Using its Docker service hostname then hit Vite hostname protection.
+- **Severity:** Low; documentation capture only, not native app behavior.
+- **Workaround used:** Use the official matching Playwright container, rebuild the preview image, and share the preview's network namespace to use its allowed loopback hostname. The 1280×720 walkthrough passed and exported nine screenshots plus a WebM. No hostname protection was disabled, and no production camera data was accessed.
+- **Actionable suggestion:** Keep browser dependencies in a pinned capture image and rebuild when copied browser adapters change. These were local tooling/configuration issues, not vendor runtime defects. Label browser fixtures separately from native-device demonstration evidence.
+- **Evidence:** [capture provenance](images/vega-playwright/README.md).
 
 ## Entry format reference
 

@@ -1,5 +1,7 @@
 # Ring developer testing
 
+Integration scope: SmartDetector’s own Bedrock feature summarizes incident observations. AutoVision, where mentioned below, is an optional, separately developed external detection add-on outside this hackathon submission. Its connector is free to add; external service configuration, quotas and costs still apply. Steps that invoke that add-on require it and are not evidence of native SmartDetector image detection.
+
 ## Developer account and Playground
 
 1. Sign in or create an account at [Amazon Developer](https://developer.amazon.com/).

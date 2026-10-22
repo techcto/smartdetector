@@ -1,5 +1,7 @@
 # Root administration
 
+Integration scope: SmartDetector’s own Bedrock feature summarizes incident observations. AutoVision, where mentioned below, is an optional, separately developed external detection add-on outside this hackathon submission. Its connector is free to add; external service configuration, quotas and costs still apply. Steps that invoke that add-on require it and are not evidence of native SmartDetector image detection.
+
 Open **Account → Admin**, immediately after Users. `/admin` verifies the signed session role on the server and redirects non-root users to Settings. It is not a main-navigation item.
 
 ## AutoVision

@@ -47,6 +47,7 @@ __pycache__/
 artifacts/
 
 # Local planning notes; not release documentation
+/vendor.md
 /Inspiration.md
 /readme.txt
 

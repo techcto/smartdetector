@@ -1,5 +1,7 @@
 # SmartDetector Console for Vega
 
+Integration scope: SmartDetector’s own Bedrock feature summarizes incident observations. AutoVision, where mentioned below, is an optional, separately developed external detection add-on outside this hackathon submission. Its connector is free to add; external service configuration, quotas and costs still apply. Steps that invoke that add-on require it and are not evidence of native SmartDetector image detection.
+
 Native React Native client, separate from the Next.js web console. Uses the Amazon SDK's React Native 0.72 `helloWorld-rn72` template, not a WebView or Android APK.
 
 Implemented source: short-lived pairing, location-scoped read-only feed, device browsing, event/frame review with detection overlays, saved-event text search, foreground alerts, remote focus and Back navigation. Fire TV displays are excluded from camera browsing. Data purged on the server disappears on refresh. The shared screens include a responsive phone layout with full-width cards, wrapped controls and narrower spacing.

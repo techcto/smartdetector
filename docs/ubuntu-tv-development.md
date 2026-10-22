@@ -1,5 +1,7 @@
 # Ubuntu: local SmartDetector and Vega TV development
 
+Integration scope: SmartDetector’s own Bedrock feature summarizes incident observations. AutoVision, where mentioned below, is an optional, separately developed external detection add-on outside this hackathon submission. Its connector is free to add; external service configuration, quotas and costs still apply. Steps that invoke that add-on require it and are not evidence of native SmartDetector image detection.
+
 This starts the real local backend, the React Native Web preview, and the native
 Vega app against the same localhost database. No private Ring camera or AWS
 credentials are required for startup. Real AutoVision analysis, Bedrock, delivery,

@@ -1,5 +1,7 @@
 # Ring-free local camera events
 
+Integration scope: SmartDetector’s own Bedrock feature summarizes incident observations. AutoVision, where mentioned below, is an optional, separately developed external detection add-on outside this hackathon submission. Its connector is free to add; external service configuration, quotas and costs still apply. Steps that invoke that add-on require it and are not evidence of native SmartDetector image detection.
+
 This is an explicit local testing tool, not a Ring connection or an automatic
 production data seeder. No private camera access or Ring credentials are needed.
 

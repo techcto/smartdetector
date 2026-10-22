@@ -1,5 +1,7 @@
 # Hackathon local testing
 
+Integration scope: SmartDetector’s own Bedrock feature summarizes incident observations. AutoVision, where mentioned below, is an optional, separately developed external detection add-on outside this hackathon submission. Its connector is free to add; external service configuration, quotas and costs still apply. Steps that invoke that add-on require it and are not evidence of native SmartDetector image detection.
+
 For the full Ubuntu/Vega/QR/Fast Refresh workflow, follow [Ubuntu TV development](ubuntu-tv-development.md).
 
 For camera testing, start with [Ring developer testing](ring-developer-testing.md): developer account → Playground → Connect Ring drawer → token renewal. Production Ring linking is a separate flow in that guide.
@@ -33,7 +35,7 @@ variables declared in the service environment. Re-run `bash app.sh up` after
 configuration/source changes. Existing local volumes survive `bash app.sh down`.
 Do not use `down -v` unless intentionally deleting local data.
 
-## Connect real AutoVision
+## Optional external detection add-on
 
 Start AutoVision using its own local guide, on the shared
 `application-platforms-local` Docker network created by `app.sh`.
@@ -58,9 +60,7 @@ notifications are log-only. It does **not** forward `BEDROCK_MODEL_ID` or mount
 real AWS credentials. Setting that variable in `.env` alone will not turn on
 SmartDetector's own Bedrock summaries in Docker.
 
-For the hackathon, enable real vision inference in AutoVision using its dedicated
-Bedrock override; SmartDetector consumes that API. SmartDetector's separate
-installation summary code uses `BEDROCK_MODEL_ID`/installation settings and the
+SmartDetector’s own installation summary code uses `BEDROCK_MODEL_ID`/installation settings and the
 AWS SDK identity. Host testing can use an approved short-lived AWS profile;
 production uses the ECS task role with scoped CloudFormation IAM. Do not replace
 all local-service credentials with production keys.
@@ -83,6 +83,5 @@ node devops/testing/tv-pairing-smoke.mjs
 The pairing smoke test is localhost-only; configure its documented test username
 and password if changed. Open `/tv` in a second browser to test pairing and
 navigation. A desktop browser pass does not certify Vega/native TV distribution.
-Record a real event's retained previews, AutoVision OpenCV version/tool trace,
-review recommendation and consuming-app behavior. Missing integrations should
+Record the event, any configured SmartDetector Bedrock summary, and the consuming-app behavior. Label external add-on detections separately; do not claim that service’s implementation as hackathon work. Missing integrations should
 show unavailable/empty states, not synthetic events or successful delivery.

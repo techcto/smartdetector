@@ -16,8 +16,8 @@ Source: [official rules](https://amazonappdev2026.devpost.com/rules), reviewed O
 ## Evidence to capture
 
 - Physical Vega TV: QR pairing, authorized location, camera browsing, remote navigation and actual event review. ARMv7 installation and production pairing have been observed; record a sanitized demonstration.
-- Real Ring motion: record event time, SmartDetector incident and AutoVision result, then show the same incident on TV. Playground live view alone is not motion-webhook proof.
-- AWS: explain the existing Ring queue/worker, AutoVision integration and indexed incident feed using the deployed architecture. Link the relevant CloudFormation and source, without account-specific outputs.
+- Real Ring motion: record event time, SmartDetector incident and any configured Bedrock summary, then show the same incident on TV. Playground live view alone is not motion-webhook proof.
+- AWS: explain the existing Ring queue/worker, SmartDetector Bedrock integration and indexed incident feed using the deployed architecture. Link the relevant CloudFormation and source, without account-specific outputs.
 - Open Source candidate: [independent AgentCore adapter](https://github.com/techcto/smartdetector-agentcore). Verify contribution dates and eligibility before claiming it; [local verification](agentcore-verification.md) does not establish deployed AgentCore execution.
 - Product feedback: attach the [friction log](friction-log.md). Prioritize a supported RN 0.83 notification API, a background-delivery sample and a Playground motion-webhook fixture.
 - Movie-overlay claim remains blocked on configured ADM credentials and physical playback validation. The sender/receiver and actionable popup are implemented; a successful build is not delivery evidence. Do not substitute an in-app banner or an in-app movie. Use owned/licensed demo video.
