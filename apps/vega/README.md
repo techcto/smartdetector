@@ -32,11 +32,17 @@ On TV choose Get pairing code. On your phone open `https://smartdetector.com/tv/
 
 ## Release management
 
+Judge mode is a Release build pointed at **https://smartdetector.com**, on both emulator and physical TV. With the SDK installed, `bash apps/vega/scripts/judge-emulator.sh` downloads and verifies the latest x86_64 package, boots the emulator and launches the app. No Docker, Metro or localhost service is required. Debug/local development remains an explicit separate workflow.
+
+The release packaging matrix builds **ARMv7 and x86_64 in parallel** from the same revision. Publication waits for both. Download [x86_64 for the emulator](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_x86_64.vpkg) or [ARMv7 for a supported Fire TV](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_armv7.vpkg); checksums cover both. Set `SMARTDETECTOR_VEGA_TARGET=x86_64` for a local Docker emulator build; the builder defaults to ARMv7. Existing ARMv7-only releases will not acquire an emulator package until a new dual-target release is published.
+
+For either judge package, create a free account at [smartdetector.com/signup](https://smartdetector.com/signup), then approve the displayed code at [smartdetector.com/tv/connect](https://smartdetector.com/tv/connect). No paid SmartDetector plan is needed for basic testing. Connected cameras, retained media and configured analysis quotas still determine what evidence is available.
+
 Successful stable version-tag builds publish a public GitHub Release only after packaging and artifact upload succeed. Assets are uploaded to a draft before publication; existing published versions are not overwritten. The stable download is [latest ARMv7 app](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_armv7.vpkg), with checksum and SDK/audit evidence on the [release page](https://github.com/techcto/smartdetector/releases/latest). GitHub selects latest using stable release metadata/version ordering; prerelease tags and manual non-tag builds do not promote it. This uses GitHub’s latest-release URL, not a mutable Git tag or container tag. It becomes available after the first successful publication job. Public release downloads do not require Actions-artifact sign-in and are separate from the 90-day workflow artifacts.
 
 Every normal CI run tests the dependency-free client logic. `release-vega.yml` runs on version tags and publishes a **source archive** workflow artifact independently of ECS/AWS Marketplace releases. This is not an installable app.
 
-Package jobs build a version-pinned SDK Docker image on a GitHub-hosted Ubuntu runner, then run client tests and package compilation inside it. Tag releases and manual releases build and retain ARMv7 `.vpkg` workflow artifacts for 90 days; missing output fails the job. No self-hosted runner or repository opt-in variable is required. Amazon Appstore submission remains manual and separate from AWS Marketplace container delivery. Capture the SDK version, package checksum and device test results with each submitted build.
+Package jobs build a version-pinned SDK Docker image on GitHub-hosted Ubuntu runners, then run client tests and package compilation inside it. Tag releases and manual releases build and retain both ARMv7 and x86_64 `.vpkg` workflow artifacts for 90 days; missing output fails the corresponding job. No self-hosted runner or repository opt-in variable is required. Amazon Appstore submission remains manual and separate from AWS Marketplace container delivery. Capture the SDK version, package checksum and device test results with each submitted build.
 
 ## Docker build
 

@@ -17,9 +17,18 @@ CONNECTED SIGNALS. CLEAR INCIDENTS. FASTER RESPONSE.
 
 **A native Vega TV experience that turns connected-camera events into something you can browse, understand and review from your couch.**
 
-[Start the judge walkthrough](docs/HACKATHON-FIELD-GUIDE.md) · [Technical README](README-TECHNICAL.md) · [AWS architecture](docs/AWS-ARCHITECTURE.md) · [Download latest Vega app](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_armv7.vpkg)
+[Start the judge walkthrough](docs/HACKATHON-FIELD-GUIDE.md) · [Technical README](README-TECHNICAL.md) · [AWS architecture](docs/AWS-ARCHITECTURE.md) · [Emulator download (x86_64)](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_x86_64.vpkg) · [Fire TV download (ARMv7)](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_armv7.vpkg)
 
 <a href="https://smartdetector.com"><img src="assets/launch-website.svg" width="200" alt="Visit SmartDetector" /></a>
+
+### Choose your app download
+
+| Where you will test | Download | Account and connection |
+| --- | --- | --- |
+| **Vega emulator on Ubuntu** | [**Emulator app — x86_64 `.vpkg`**](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_x86_64.vpkg) | Production: **smartdetector.com**, using your free account. |
+| **Supported physical Vega Fire TV** | [**Fire TV app — ARMv7 `.vpkg`**](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_armv7.vpkg) | Production: **smartdetector.com**, using your free account. |
+
+**Same app version, different hardware packages—do not interchange them.** Both are standalone Release builds; no Docker, localhost server or Metro is needed. [Create your free account](https://smartdetector.com/signup), launch the appropriate app, then approve its pairing code at [smartdetector.com/tv/connect](https://smartdetector.com/tv/connect). No paid SmartDetector plan is needed for basic testing; analysis availability depends on configured quotas and connected cameras. The emulator package becomes available after the first successful dual-target release; older releases may have only ARMv7.
 
 ## A name waiting for the right idea
 

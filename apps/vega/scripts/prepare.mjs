@@ -24,6 +24,9 @@ try {
   const origins = serviceOrigins();
   const version = process.env.SMARTDETECTOR_RELEASE_VERSION || "0.1.0";
   const buildNumber = process.env.SMARTDETECTOR_VEGA_BUILD_NUMBER || "1";
+  const architecture = process.env.SMARTDETECTOR_VEGA_TARGET || "armv7";
+  if (!["armv7", "x86_64", "aarch64"].includes(architecture))
+    throw Error("Invalid Vega target architecture");
   if (
     !/^[1-9][0-9]*$/.test(buildNumber) ||
     !Number.isSafeInteger(Number(buildNumber))
@@ -105,7 +108,7 @@ try {
   );
   pkg.scripts[
     "build:release"
-  ] = `react-native build-vega --build-type Release --build-version ${version} --build-number ${buildNumber} --target armv7 --max-workers 1`;
+  ] = `react-native build-vega --build-type Release --build-version ${version} --build-number ${buildNumber} --target ${architecture} --max-workers 1`;
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
   // Only change the package version; retain the SDK's runtime and component definitions.
   let inPackage = false,
@@ -154,7 +157,7 @@ try {
     run("npm", ["run", "build:app"], target);
   }
   console.log(
-    `Prepared ${target}. SDK-generated dependencies/runtime retained. Device package must be ARMv7; inspect build output before submission.`
+    `Prepared ${target} for ${architecture}. SDK-generated dependencies/runtime retained. Use x86_64 for the emulator and ARMv7 for supported physical Fire TV devices.`
   );
 } catch (error) {
   console.error(error.message);

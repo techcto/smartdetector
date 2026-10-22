@@ -38,7 +38,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: smartdetector-vega-armv7-${{ github.ref_name }}
-          path: release
+          path: release/armv7
+      - uses: actions/download-artifact@v4
+        with:
+          name: smartdetector-vega-x86_64-${{ github.ref_name }}
+          path: release/x86_64
       - uses: actions/download-artifact@v4
         with:
           name: smartdetector-vega-source-${{ github.ref_name }}
@@ -47,9 +51,12 @@ jobs:
         working-directory: release
         run: |
           set -euo pipefail
-          test -s armv7-release/smartdetectorconsole_armv7.vpkg
-          mv armv7-release/smartdetectorconsole_armv7.vpkg .
-          sha256sum smartdetectorconsole_armv7.vpkg > SHA256SUMS
+          test -s armv7/armv7-release/smartdetectorconsole_armv7.vpkg
+          test -s x86_64/x86_64-release/smartdetectorconsole_x86_64.vpkg
+          mv armv7/armv7-release/smartdetectorconsole_armv7.vpkg .
+          mv x86_64/x86_64-release/smartdetectorconsole_x86_64.vpkg .
+          cp armv7/sdk-version.txt armv7/native-package-lock.json armv7/security-audit.json .
+          sha256sum smartdetectorconsole_armv7.vpkg smartdetectorconsole_x86_64.vpkg > SHA256SUMS
           test -s sdk-version.txt
           test -s native-package-lock.json
           test -s security-audit.json
@@ -65,17 +72,22 @@ jobs:
           if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > existing-draft.txt 2>/dev/null; then
             if [ "$(<existing-draft.txt)" != true ]; then
               gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fx smartdetectorconsole_armv7.vpkg
+              gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fx smartdetectorconsole_x86_64.vpkg
               echo 'Published app release already exists; leaving assets unchanged.'
               exit 0
             fi
           else
-            gh release create "$RELEASE_TAG" --verify-tag --draft --title "SmartDetector Vega $RELEASE_TAG" --notes 'Native ARMv7 app for supported Vega Fire TV devices. Download smartdetectorconsole_armv7.vpkg and follow the judge field guide in the repository. This is not the x86_64 simulator package. Native dependency audit evidence is included; a successful build is not Appstore certification.'
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "SmartDetector Vega $RELEASE_TAG" --notes 'Two native Release packages, both connected to https://smartdetector.com without Docker or Metro: smartdetectorconsole_x86_64.vpkg for the Ubuntu Vega emulator, and smartdetectorconsole_armv7.vpkg for supported physical Vega Fire TV devices. Follow the judge field guide. Native dependency audit evidence is included; a successful build is not Appstore certification.'
           fi
-          gh release upload "$RELEASE_TAG" --clobber smartdetectorconsole_armv7.vpkg SHA256SUMS sdk-version.txt native-package-lock.json security-audit.json smartdetector-vega-source.tar.gz
+          gh release upload "$RELEASE_TAG" --clobber smartdetectorconsole_armv7.vpkg smartdetectorconsole_x86_64.vpkg SHA256SUMS sdk-version.txt native-package-lock.json security-audit.json smartdetector-vega-source.tar.gz
           release_id="$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" --jq '.id')"
           gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -F draft=false -f make_latest=legacy
   package:
     needs: source
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [armv7, x86_64]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -94,14 +106,15 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.release_version }}
           SMARTDETECTOR_VEGA_BUILDER_READY: '1'
+          SMARTDETECTOR_VEGA_TARGET: ${{ matrix.target }}
         run: |
           version="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
           SMARTDETECTOR_RELEASE_VERSION="$version" SMARTDETECTOR_VEGA_BUILD_NUMBER="$GITHUB_RUN_NUMBER" bash apps/vega/scripts/build-docker.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: smartdetector-vega-armv7-${{ github.ref_name }}
+          name: smartdetector-vega-${{ matrix.target }}-${{ github.ref_name }}
           path: |
-            apps/vega/build/armv7-release/*.vpkg
+            apps/vega/build/${{ matrix.target }}-release/*.vpkg
             apps/vega/build/SHA256SUMS
             apps/vega/build/sdk-version.txt
             apps/vega/build/native-package-lock.json

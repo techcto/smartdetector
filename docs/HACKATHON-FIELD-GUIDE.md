@@ -8,6 +8,15 @@ The main entry is **SmartDetector Console**, a native React Native app for **Veg
 
 Quick links: [Create account](https://smartdetector.com/signup) · [Sign in](https://smartdetector.com/login) · [Pair TV](https://smartdetector.com/tv/connect) · [Source](https://github.com/techcto/smartdetector) · [Native builds](https://github.com/techcto/smartdetector/actions/workflows/release-vega.yml) · [Help](mailto:help@solodev.com)
 
+## First: choose the right download
+
+| Your test device | Correct app package | Connects to |
+| --- | --- | --- |
+| **Ubuntu Vega emulator** | [**`smartdetectorconsole_x86_64.vpkg`**](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_x86_64.vpkg) | **https://smartdetector.com** |
+| **Supported physical Vega Fire TV** | [**`smartdetectorconsole_armv7.vpkg`**](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_armv7.vpkg) | **https://smartdetector.com** |
+
+**Both use a free SmartDetector account.** [Sign up here](https://smartdetector.com/signup); do not buy a plan for the basic walkthrough. These are the same app release built for different processors. ARMv7 will not run in the x86_64 emulator. Neither judge package requires Docker, Metro, a localhost backend, an AWS account or API keys. Analysis/media availability and quotas are separate from free signup. The first successful dual-target release must finish before both downloads exist; an old ARMv7-only release is not an emulator download.
+
 ## Take a look before you start
 
 ![SmartDetector QR pairing screen captured by Playwright](demo-assets/gallery/06-tv-qr.png)
@@ -26,36 +35,28 @@ Use native Ubuntu with an x86_64 processor, CPU virtualization enabled, and acce
 
 Windows/WSL is experimental: we ran it successfully, but native Ubuntu is the clearer judging path. The simulator is a separate window, not the website or browser preview.
 
-### Build the simulator app against the hosted site
+### Download and launch — no local server
 
-The current release workflow exports **ARMv7 for a physical TV**. Do **not** install that file in the x86_64 simulator. These commands build the correct simulator package and use the hosted service automatically because this is a **Release** build:
+The native release workflow builds **two packages from the same source**: x86_64 for this emulator and ARMv7 for supported physical Fire TV devices. Both are self-contained **Release** builds connected to **https://smartdetector.com**. Judges do not need Docker, Metro, a local database or API credentials. Download the [latest emulator package](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_x86_64.vpkg), or let the launcher download and checksum-verify it:
 
 ```bash
 git clone --recurse-submodules https://github.com/techcto/smartdetector.git
 cd smartdetector
 source "$HOME/vega/env"
-export SMARTDETECTOR_VEGA_WORK_DIR="$HOME/.cache/smartdetector-vega/judge"
-npm --prefix apps/vega ci
-npm --prefix apps/vega run prepare:app
-cp apps/vega/native-package-lock.json "$SMARTDETECTOR_VEGA_WORK_DIR/package-lock.json"
-npm --prefix "$SMARTDETECTOR_VEGA_WORK_DIR" ci
-cd "$SMARTDETECTOR_VEGA_WORK_DIR"
-npx react-native build-vega --build-type Release --target x86_64 --max-workers 1 --build-number 1
-vega virtual-device start --timeout 120 --gl-accel
+bash apps/vega/scripts/judge-emulator.sh
 ```
 
-Leave the simulator open. In another terminal:
+Already downloaded the package? Supply its path instead:
 
 ```bash
-source "$HOME/vega/env"
-vega run-app "$HOME/.cache/smartdetector-vega/judge/build/x86_64-release/smartdetectorconsole_x86_64.vpkg" com.smartdetector.console.main -d VirtualDevice
+bash apps/vega/scripts/judge-emulator.sh /path/to/smartdetectorconsole_x86_64.vpkg
 ```
 
-**You should see:** SmartDetector’s QR pairing screen. If GPU startup fails, retry the simulator with `--no-gl-accel`. A build that prints completion but never returns is not an app failure; contact us rather than waiting hours. See [troubleshooting](#if-something-doesnt-work).
+**You should see:** SmartDetector’s QR pairing screen. Leave the emulator open and approve through the hosted website in Step 3. If graphics startup fails, retry with `SMARTDETECTOR_VEGA_SOFTWARE_GRAPHICS=1 bash apps/vega/scripts/judge-emulator.sh`. Localhost is an explicit [developer workflow](ubuntu-tv-development.md), not the judge default. The two-download release workflow must have completed before these assets are available; older ARMv7-only releases cannot run in the emulator. See [troubleshooting](#if-something-doesnt-work).
 
 ### Using a real Vega Fire TV instead?
 
-Enable developer access using [Amazon’s device instructions](https://developer.amazon.com/docs/vega/0.24/run-apps). Download the ARMv7 artifact from a **successful** native workflow run, unzip it, and install `smartdetectorconsole_armv7.vpkg` with Vega CLI. The `.vpkg` is not an Android APK. Launch component `com.smartdetector.console.main`. Amazon developer authentication is separate from your SmartDetector account.
+Enable developer access using [Amazon’s device instructions](https://developer.amazon.com/docs/vega/0.24/run-apps). Download the [latest ARMv7 package](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_armv7.vpkg) and install `smartdetectorconsole_armv7.vpkg` with Vega CLI. The `.vpkg` is not an Android APK and is not the emulator package. Launch component `com.smartdetector.console.main`. Amazon developer authentication is separate from your SmartDetector account.
 
 ## Step 2 — Create your free SmartDetector account
 

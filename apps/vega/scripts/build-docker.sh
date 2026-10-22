@@ -3,6 +3,8 @@ set -euo pipefail
 app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 builder_image=smartdetector-vega-builder:0.24.12112
 build_volume="${SMARTDETECTOR_VEGA_BUILD_VOLUME:-smartdetector-vega-rn72-generated}"
+architecture="${SMARTDETECTOR_VEGA_TARGET:-armv7}"
+case "$architecture" in armv7|x86_64|aarch64) ;; *) echo 'Invalid Vega target architecture' >&2; exit 1;; esac
 case "$build_volume" in ''|*[!a-zA-Z0-9_.-]*) echo 'Invalid build volume name' >&2; exit 1;; esac
 if [[ "${SMARTDETECTOR_VEGA_BUILDER_READY:-0}" != 1 ]]; then
   docker build --platform linux/amd64 -t "$builder_image" "$app_dir"
@@ -15,6 +17,7 @@ docker volume create "$build_volume-npm" >/dev/null
 docker volume create "$build_volume-dependencies" >/dev/null
 docker run --rm \
   -e CI=true \
+  -e "SMARTDETECTOR_VEGA_TARGET=$architecture" \
   --mount "type=bind,source=$app_dir,target=/workspace,readonly" \
   --mount "type=volume,source=$build_volume,target=/workspace/.generated" \
   --mount "type=volume,source=$build_volume-npm,target=/root/.npm" \
@@ -24,4 +27,4 @@ docker run --rm \
   -e "SMARTDETECTOR_VEGA_BUILD_NUMBER=${SMARTDETECTOR_VEGA_BUILD_NUMBER:-1}" \
   -e "SMARTDETECTOR_VEGA_ORIGIN=${SMARTDETECTOR_VEGA_ORIGIN:-https://smartdetector.com}" \
   "$builder_image" \
-  'source /root/vega/env && npm ci && npm test && npm run build:app && test -f .generated/project/build/armv7-release/smartdetectorconsole_armv7.vpkg && cp -a .generated/project/build/. /artifacts/ && cp .generated/project/package-lock.json /artifacts/native-package-lock.json && cp .generated/project/security-audit.json /artifacts/security-audit.json && vega --version > /artifacts/sdk-version.txt && cd /artifacts && find armv7-release -name "*.vpkg" -exec sha256sum {} \; > SHA256SUMS'
+  'source /root/vega/env && npm ci && npm test && npm run build:app && test -f ".generated/project/build/$SMARTDETECTOR_VEGA_TARGET-release/smartdetectorconsole_$SMARTDETECTOR_VEGA_TARGET.vpkg" && cp -a .generated/project/build/. /artifacts/ && cp .generated/project/package-lock.json /artifacts/native-package-lock.json && cp .generated/project/security-audit.json /artifacts/security-audit.json && vega --version > /artifacts/sdk-version.txt && cd /artifacts && find "$SMARTDETECTOR_VEGA_TARGET-release" -name "*.vpkg" -exec sha256sum {} \; > SHA256SUMS'
