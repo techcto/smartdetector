@@ -7,13 +7,19 @@ RUN npm ci
 FROM deps AS build
 COPY . .
 RUN npm run build
+RUN npm prune --omit=dev
+RUN node -e "require('node:fs').rmSync('.next/cache',{recursive:true,force:true})"
 FROM node:26-alpine AS prod
+RUN apk add --no-cache openssl
 WORKDIR /app
 ENV NODE_ENV=production PORT=3001 HOSTNAME=0.0.0.0
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/submodules ./submodules
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/package.json /app/next.config.mjs ./
+COPY devops/docker/https-server.mjs ./https-server.mjs
 USER node
 EXPOSE 3001
-CMD ["node","server.js"]
+CMD ["node","https-server.mjs"]
 
 

@@ -97,6 +97,16 @@ The independent [SmartDetector AgentCore adapter](https://github.com/techcto/sma
 - **Idle and burst costs differ:** Fargate services, ingress and selected networking can incur standing costs. Request-based database, queue and inference use still has limits and costs. Sampling bounds analysis work; it is not evidence that a deployment is free or always cheaper than Lambda/EC2.
 - **Data minimization:** short-lived read-only TV credentials, server-side provider credentials, scoped incident queries and default 24-hour evidence retention reduce exposure. They are design controls, not a blanket compliance certification.
 
+## Encryption boundaries
+
+The hardened templates require HTTPS between the load balancer and the web/API containers, including health checks. The application uses a native Next.js HTTPS server, not a plaintext reverse-proxy hop. Each task generates its own temporary self-signed certificate; startup key files are removed before listening. ALB encrypts target connections but does not validate target certificates, so this is not mutual TLS. Security groups restrict task ingress to the load balancer. The standalone template requires an ACM certificate and redirects port 80 to HTTPS; an existing/AppHub deployment must supply an existing HTTPS listener.
+
+DynamoDB encryption and S3 SSE-S3 encryption are declared in both templates. Main and dead-letter SQS queues explicitly enable SQS-managed encryption. Bucket and queue policies deny non-TLS client requests, and task/execution roles deny insecure AWS API calls. Service-principal exceptions on resource policies preserve AWS service delivery. CloudWatch Logs encrypts data at rest by default; Secrets Manager encrypts secrets using its managed encryption key unless configured otherwise. Fargate services pin Linux platform 1.4.0, whose ephemeral storage is AES-256 encrypted. No additional customer-managed KMS keys are required for these controls.
+
+Production analysis endpoints require HTTPS. Explicit local Compose development remains an HTTP-only emulation environment and does not carry the production encryption claim. These source settings do not prove an existing installation has been updated: publish the matching images, review and execute the CloudFormation change set, then verify the live configuration and application health. Do not switch targets to HTTPS while still using plaintext-only images. Target-group replacement and task rollout may briefly interrupt requests, but do not require reinstalling or replacing the database, evidence bucket or queues.
+
+References: [ALB HTTPS targets](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html), [Fargate storage encryption](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-task-storage.html), [CloudWatch Logs encryption](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html).
+
 ## Source map
 
 - [Standalone application template](../devops/cloudformation/smartdetector.yaml)

@@ -206,9 +206,10 @@
           "Ref": "VpcId"
         },
         "Port": 3000,
-        "Protocol": "HTTP",
+        "Protocol": "HTTPS",
         "TargetType": "ip",
-        "HealthCheckPath": "/api/health"
+        "HealthCheckPath": "/api/health",
+        "HealthCheckProtocol": "HTTPS"
       }
     },
     "ApiTarget": {
@@ -218,9 +219,10 @@
           "Ref": "VpcId"
         },
         "Port": 3001,
-        "Protocol": "HTTP",
+        "Protocol": "HTTPS",
         "TargetType": "ip",
-        "HealthCheckPath": "/api/health"
+        "HealthCheckPath": "/api/health",
+        "HealthCheckProtocol": "HTTPS"
       }
     },
     "Queue": {
@@ -236,13 +238,15 @@
             ]
           },
           "maxReceiveCount": 5
-        }
+        },
+        "SqsManagedSseEnabled": true
       }
     },
     "DeadLetterQueue": {
       "Type": "AWS::SQS::Queue",
       "Properties": {
-        "MessageRetentionPeriod": 1209600
+        "MessageRetentionPeriod": 1209600,
+        "SqsManagedSseEnabled": true
       }
     },
     "AppTable": {
@@ -433,6 +437,24 @@
                 "Ref": "AWS::NoValue"
               }
             ]
+          },
+          {
+            "PolicyName": "RequireSecureTransport",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Deny",
+                  "Action": "*",
+                  "Resource": "*",
+                  "Condition": {
+                    "Bool": {
+                      "aws:SecureTransport": "false"
+                    }
+                  }
+                }
+              ]
+            }
           }
         ]
       }
@@ -531,6 +553,24 @@
                     "social-messaging:SendWhatsAppMessage"
                   ],
                   "Resource": "*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "RequireSecureTransport",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Deny",
+                  "Action": "*",
+                  "Resource": "*",
+                  "Condition": {
+                    "Bool": {
+                      "aws:SecureTransport": "false"
+                    }
+                  }
                 }
               ]
             }
@@ -785,7 +825,8 @@
               "Ref": "WebTarget"
             }
           }
-        ]
+        ],
+        "PlatformVersion": "1.4.0"
       }
     },
     "ApiTask": {
@@ -1029,7 +1070,8 @@
               "Ref": "ApiTarget"
             }
           }
-        ]
+        ],
+        "PlatformVersion": "1.4.0"
       }
     },
     "WorkerTask": {
@@ -1413,38 +1455,74 @@
         "Queues": [
           {
             "Ref": "Queue"
+          },
+          {
+            "Ref": "DeadLetterQueue"
           }
         ],
         "PolicyDocument": {
           "Version": "2012-10-17",
           "Statement": [
             {
-              "Effect": "Allow",
-              "Principal": {
-                "Service": "events.amazonaws.com"
-              },
-              "Action": "sqs:SendMessage",
-              "Resource": {
-                "Fn::GetAtt": [
-                  "Queue",
-                  "Arn"
-                ]
-              },
+              "Sid": "DenyInsecureTransport",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "sqs:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "Queue",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::GetAtt": [
+                    "DeadLetterQueue",
+                    "Arn"
+                  ]
+                }
+              ],
               "Condition": {
-                "ArnEquals": {
-                  "aws:SourceArn": {
-                    "Fn::GetAtt": [
-                      "IncidentRule",
-                      "Arn"
-                    ]
-                  }
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                  "aws:PrincipalIsAWSService": "false"
                 }
               }
+            },
+            {
+              "Fn::If": [
+                "UseEventBridge",
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "events.amazonaws.com"
+                  },
+                  "Action": "sqs:SendMessage",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Queue",
+                      "Arn"
+                    ]
+                  },
+                  "Condition": {
+                    "ArnEquals": {
+                      "aws:SourceArn": {
+                        "Fn::GetAtt": [
+                          "IncidentRule",
+                          "Arn"
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "Ref": "AWS::NoValue"
+                }
+              ]
             }
           ]
         }
-      },
-      "Condition": "UseEventBridge"
+      }
     },
     "ApplicationCertificate": {
       "Type": "AWS::ElasticLoadBalancingV2::ListenerCertificate",
@@ -1519,6 +1597,42 @@
         "Description": "Server-only SmartDetector ADM OAuth credentials",
         "SecretString": {
           "Fn::Sub": "{\"client_id\":\"${AdmClientId}\",\"client_secret\":\"${AdmClientSecret}\"}"
+        }
+      }
+    },
+    "EvidenceBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "EvidenceBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyInsecureTransport",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "EvidenceBucket",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Sub": "${EvidenceBucket.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                  "aws:PrincipalIsAWSService": "false"
+                }
+              }
+            }
+          ]
         }
       }
     }

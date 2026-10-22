@@ -58,7 +58,14 @@
         "smartdetector-objects": {
           "condition": "service_healthy"
         }
-      }
+      },
+      "command": [
+        "node",
+        "node_modules/next/dist/bin/next",
+        "start",
+        "-H",
+        "0.0.0.0"
+      ]
     },
     "smartdetector-api": {
       "init": true,
@@ -118,7 +125,14 @@
         "smartdetector-objects": {
           "condition": "service_healthy"
         }
-      }
+      },
+      "command": [
+        "node",
+        "node_modules/next/dist/bin/next",
+        "start",
+        "-H",
+        "0.0.0.0"
+      ]
     },
     "smartdetector-worker": {
       "init": true,

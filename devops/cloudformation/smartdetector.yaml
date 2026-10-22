@@ -22,7 +22,8 @@
     },
     "CertificateArn": {
       "Type": "String",
-      "Default": ""
+      "AllowedPattern": "^arn:aws[a-z-]*:acm:[a-z0-9-]+:[0-9]{12}:certificate/[a-zA-Z0-9-]+$",
+      "Description": "Required issued ACM certificate for the public HTTPS listener."
     },
     "RootUsername": {
       "Type": "String",
@@ -152,18 +153,6 @@
     }
   },
   "Conditions": {
-    "UseTLS": {
-      "Fn::Not": [
-        {
-          "Fn::Equals": [
-            {
-              "Ref": "CertificateArn"
-            },
-            ""
-          ]
-        }
-      ]
-    },
     "UseBedrock": {
       "Fn::Not": [
         {
@@ -311,9 +300,10 @@
           "Ref": "VpcId"
         },
         "Port": 3000,
-        "Protocol": "HTTP",
+        "Protocol": "HTTPS",
         "TargetType": "ip",
-        "HealthCheckPath": "/api/health"
+        "HealthCheckPath": "/api/health",
+        "HealthCheckProtocol": "HTTPS"
       }
     },
     "ApiTarget": {
@@ -323,9 +313,10 @@
           "Ref": "VpcId"
         },
         "Port": 3001,
-        "Protocol": "HTTP",
+        "Protocol": "HTTPS",
         "TargetType": "ip",
-        "HealthCheckPath": "/api/health"
+        "HealthCheckPath": "/api/health",
+        "HealthCheckProtocol": "HTTPS"
       }
     },
     "Listener": {
@@ -338,23 +329,12 @@
         "Protocol": "HTTP",
         "DefaultActions": [
           {
-            "Fn::If": [
-              "UseTLS",
-              {
-                "Type": "redirect",
-                "RedirectConfig": {
-                  "Protocol": "HTTPS",
-                  "Port": "443",
-                  "StatusCode": "HTTP_301"
-                }
-              },
-              {
-                "Type": "forward",
-                "TargetGroupArn": {
-                  "Ref": "WebTarget"
-                }
-              }
-            ]
+            "Type": "redirect",
+            "RedirectConfig": {
+              "Protocol": "HTTPS",
+              "Port": "443",
+              "StatusCode": "HTTP_301"
+            }
           }
         ]
       }
@@ -376,30 +356,18 @@
         ],
         "Actions": [
           {
-            "Fn::If": [
-              "UseTLS",
-              {
-                "Type": "redirect",
-                "RedirectConfig": {
-                  "Protocol": "HTTPS",
-                  "Port": "443",
-                  "StatusCode": "HTTP_301"
-                }
-              },
-              {
-                "Type": "forward",
-                "TargetGroupArn": {
-                  "Ref": "ApiTarget"
-                }
-              }
-            ]
+            "Type": "redirect",
+            "RedirectConfig": {
+              "Protocol": "HTTPS",
+              "Port": "443",
+              "StatusCode": "HTTP_301"
+            }
           }
         ]
       }
     },
     "HttpsListener": {
       "Type": "AWS::ElasticLoadBalancingV2::Listener",
-      "Condition": "UseTLS",
       "Properties": {
         "LoadBalancerArn": {
           "Ref": "ALB"
@@ -420,12 +388,12 @@
               "Ref": "WebTarget"
             }
           }
-        ]
+        ],
+        "SslPolicy": "ELBSecurityPolicy-TLS13-1-2-2021-06"
       }
     },
     "HttpsApiRule": {
       "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
-      "Condition": "UseTLS",
       "Properties": {
         "ListenerArn": {
           "Ref": "HttpsListener"
@@ -462,13 +430,15 @@
             ]
           },
           "maxReceiveCount": 5
-        }
+        },
+        "SqsManagedSseEnabled": true
       }
     },
     "DeadLetterQueue": {
       "Type": "AWS::SQS::Queue",
       "Properties": {
-        "MessageRetentionPeriod": 1209600
+        "MessageRetentionPeriod": 1209600,
+        "SqsManagedSseEnabled": true
       }
     },
     "AppTable": {
@@ -659,6 +629,24 @@
                 "Ref": "AWS::NoValue"
               }
             ]
+          },
+          {
+            "PolicyName": "RequireSecureTransport",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Deny",
+                  "Action": "*",
+                  "Resource": "*",
+                  "Condition": {
+                    "Bool": {
+                      "aws:SecureTransport": "false"
+                    }
+                  }
+                }
+              ]
+            }
           }
         ]
       }
@@ -757,6 +745,24 @@
                     "social-messaging:SendWhatsAppMessage"
                   ],
                   "Resource": "*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "RequireSecureTransport",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Deny",
+                  "Action": "*",
+                  "Resource": "*",
+                  "Condition": {
+                    "Bool": {
+                      "aws:SecureTransport": "false"
+                    }
+                  }
                 }
               ]
             }
@@ -1011,7 +1017,8 @@
               "Ref": "WebTarget"
             }
           }
-        ]
+        ],
+        "PlatformVersion": "1.4.0"
       }
     },
     "ApiTask": {
@@ -1255,7 +1262,8 @@
               "Ref": "ApiTarget"
             }
           }
-        ]
+        ],
+        "PlatformVersion": "1.4.0"
       }
     },
     "WorkerTask": {
@@ -1569,38 +1577,74 @@
         "Queues": [
           {
             "Ref": "Queue"
+          },
+          {
+            "Ref": "DeadLetterQueue"
           }
         ],
         "PolicyDocument": {
           "Version": "2012-10-17",
           "Statement": [
             {
-              "Effect": "Allow",
-              "Principal": {
-                "Service": "events.amazonaws.com"
-              },
-              "Action": "sqs:SendMessage",
-              "Resource": {
-                "Fn::GetAtt": [
-                  "Queue",
-                  "Arn"
-                ]
-              },
+              "Sid": "DenyInsecureTransport",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "sqs:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "Queue",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::GetAtt": [
+                    "DeadLetterQueue",
+                    "Arn"
+                  ]
+                }
+              ],
               "Condition": {
-                "ArnEquals": {
-                  "aws:SourceArn": {
-                    "Fn::GetAtt": [
-                      "IncidentRule",
-                      "Arn"
-                    ]
-                  }
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                  "aws:PrincipalIsAWSService": "false"
                 }
               }
+            },
+            {
+              "Fn::If": [
+                "UseEventBridge",
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "events.amazonaws.com"
+                  },
+                  "Action": "sqs:SendMessage",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Queue",
+                      "Arn"
+                    ]
+                  },
+                  "Condition": {
+                    "ArnEquals": {
+                      "aws:SourceArn": {
+                        "Fn::GetAtt": [
+                          "IncidentRule",
+                          "Arn"
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "Ref": "AWS::NoValue"
+                }
+              ]
             }
           ]
         }
-      },
-      "Condition": "UseEventBridge"
+      }
     },
     "ApplicationDns": {
       "Type": "AWS::Route53::RecordSet",
@@ -1666,20 +1710,48 @@
           "Fn::Sub": "{\"client_id\":\"${AdmClientId}\",\"client_secret\":\"${AdmClientSecret}\"}"
         }
       }
+    },
+    "EvidenceBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "EvidenceBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyInsecureTransport",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "EvidenceBucket",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Sub": "${EvidenceBucket.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                  "aws:PrincipalIsAWSService": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
     }
   },
   "Outputs": {
     "URL": {
       "Value": {
-        "Fn::If": [
-          "UseTLS",
-          {
-            "Fn::Sub": "https://${ALB.DNSName}"
-          },
-          {
-            "Fn::Sub": "http://${ALB.DNSName}"
-          }
-        ]
+        "Fn::Sub": "https://${ALB.DNSName}"
       }
     },
     "Table": {
