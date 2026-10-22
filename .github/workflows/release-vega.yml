@@ -27,11 +27,23 @@ jobs:
   package:
     needs: source
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Load cached Vega SDK builder
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/vega
+          platforms: linux/amd64
+          load: true
+          tags: smartdetector-vega-builder:0.24.12112
+          cache-from: type=gha,scope=vega-sdk
+          cache-to: type=gha,mode=max,scope=vega-sdk
       - name: Build official SDK project and test client
         env:
           INPUT_VERSION: ${{ inputs.release_version }}
+          SMARTDETECTOR_VEGA_BUILDER_READY: '1'
         run: |
           version="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
           SMARTDETECTOR_RELEASE_VERSION="$version" SMARTDETECTOR_VEGA_BUILD_NUMBER="$GITHUB_RUN_NUMBER" bash apps/vega/scripts/build-docker.sh

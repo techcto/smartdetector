@@ -4,7 +4,9 @@ app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 builder_image=smartdetector-vega-builder:0.24.12112
 build_volume="${SMARTDETECTOR_VEGA_BUILD_VOLUME:-smartdetector-vega-rn72-generated}"
 case "$build_volume" in ''|*[!a-zA-Z0-9_.-]*) echo 'Invalid build volume name' >&2; exit 1;; esac
-docker build --platform linux/amd64 -t "$builder_image" "$app_dir"
+if [[ "${SMARTDETECTOR_VEGA_BUILDER_READY:-0}" != 1 ]]; then
+  docker build --platform linux/amd64 -t "$builder_image" "$app_dir"
+fi
 # Nested volume mountpoints must exist before the parent is mounted read-only.
 mkdir -p "$app_dir/build" "$app_dir/.generated" "$app_dir/node_modules"
 # Keep thousands of SDK/npm files on Linux storage, not a Windows bind mount.
@@ -12,6 +14,7 @@ docker volume create "$build_volume" >/dev/null
 docker volume create "$build_volume-npm" >/dev/null
 docker volume create "$build_volume-dependencies" >/dev/null
 docker run --rm \
+  -e CI=true \
   --mount "type=bind,source=$app_dir,target=/workspace,readonly" \
   --mount "type=volume,source=$build_volume,target=/workspace/.generated" \
   --mount "type=volume,source=$build_volume-npm,target=/root/.npm" \
