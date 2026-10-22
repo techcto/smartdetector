@@ -12,7 +12,7 @@ export default function UsersConsole(){
  <DrawerBackdrop open={open} onClose={()=>setOpen(false)}/>
  <Drawer open={open} title="Add user" onClose={()=>setOpen(false)}>
   <form className="drawer-form" onSubmit={add}>
-   <label>Display name<input className="form-control" name="displayName" required autoFocus/></label><label>Email<input className="form-control" name="email" type="email" autoComplete="off"/></label>
+   <label>Display name<input className="form-control" name="displayName" required autoFocus/></label><label>Email<input className="form-control" name="email" type="email" autoComplete="off" required/></label>
    <label>Username<input className="form-control" name="username" required/></label>
    <label>Temporary password<input className="form-control" name="password" type="password" minLength={12} required/></label>
    <label>Role<select className="form-select" name="role"><option value="operator">Operator</option><option value="viewer">Viewer</option><option value="admin">Admin</option></select></label>

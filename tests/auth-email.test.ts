@@ -92,12 +92,12 @@ test("verification links are bound to the address and cannot be swapped with res
   assert.equal((await verify(post("/api/auth/verify-email", { token: await createResetToken(user.id, secret) }))).status, 400);
 });
 
-test("accounts created before verification existed keep signing in", async () => {
+test("accounts without explicit email verification cannot sign in", async () => {
   const org = await store.createOrganization({ name: "Legacy (Personal)", ownerId: "legacy-id", orgType: "personal" });
   const now = new Date().toISOString();
   await store.putUser({ id: "legacy-id", username: "legacy", displayName: "Legacy", status: "active", createdAt: now, updatedAt: now }, hashPassword(password));
   await store.putMembership({ id: "legacy-membership", orgId: org.id, userId: "legacy-id", role: "admin", status: "active", createdAt: now, updatedAt: now });
-  assert.equal((await login(post("/api/auth/login", { username: "legacy", password }))).status, 200);
+  assert.equal((await login(post("/api/auth/login", { username: "legacy", password }))).status, 403);
 });
 
 test("password reset mails the account email, not the username", async () => {

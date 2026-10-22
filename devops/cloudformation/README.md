@@ -4,14 +4,64 @@ Use `smartdetector.yaml` to create an ALB and ECS cluster in an existing VPC. Us
 
 Select `DeploymentMode=saas` for hosted workspaces and Stripe billing or `on-premise` for a private installation. Set root credentials and a random session secret at launch. Supply an ACM certificate and configure DNS for HTTPS. The existing-listener template expects you to provide an HTTPS listener.
 
-Example parameters contain placeholders only. Do not commit filled parameter files. Create a reviewed change set with `aws cloudformation create-change-set --stack-name smartdetector-test --change-set-name initial-install --change-set-type CREATE --template-body file://devops/cloudformation/smartdetector.yaml --parameters file://your-private.parameters.json --capabilities CAPABILITY_IAM`. Wait for creation, inspect it with `describe-change-set`, and execute only after reviewing resources, IAM changes and replacements. Update and delete applications through CloudFormation, not manual resource operations.
+Example parameters contain placeholders only. Do not commit filled parameter files. These templates exceed CloudFormation's 51,200-byte inline limit; use the published HTTPS S3 template URL. Create a reviewed change set with `aws cloudformation create-change-set --stack-name smartdetector-test --change-set-name initial-install --change-set-type CREATE --template-url YOUR_PUBLISHED_HTTPS_S3_TEMPLATE_URL --parameters file://your-private.parameters.json --capabilities CAPABILITY_IAM`. Wait for creation, inspect it with `describe-change-set`, and execute only after reviewing resources, IAM changes and replacements. Update and delete applications through CloudFormation, not manual resource operations.
+
+Stripe credentials use Secrets Manager in both templates. See [Stripe installation and rotation](../stripe/README.md#secrets-manager-standalone-and-shared-ingress-installs) for stack-managed credentials, an enterprise-owned secret ARN, optional customer-managed KMS, and reviewed rotation rollouts. Keep sandbox and live secrets separate. Price IDs remain ordinary configuration.
+
+### Core secrets: install, migration and rotation
+
+Both templates store `RootPassword`, `SessionSecret` and the effective
+`ProviderSecret` in three separate retained Secrets Manager secrets. ECS loads
+their values through `Secrets`; task definitions contain only ARNs. The
+execution role can read only these specific secrets; the application task role
+does not need Secrets Manager access. Outputs expose ARNs only. Existing ADM
+secret injection and the optional AutoVision secret reference are unchanged.
+
+For an existing installation, keep the current NoEcho parameter values using
+`UsePreviousValue=true`. No random replacements or migration defaults are
+introduced. If `ProviderSecret` was empty, the new provider secret contains the
+exact current `SessionSecret`, preserving decryption of saved Ring credentials.
+Review the change set: expect three new secrets plus task/service rollouts, not
+replacement of application data stores. Removing plaintext values from the new
+task definitions does not scrub historical task-definition revisions or revoke
+any credentials that were previously exposed.
+
+For new installs, supply real root credentials and a cryptographically random
+session secret. An explicit, independently generated provider key is recommended.
+`CoreSecretsKmsKeyArn` optionally selects a customer-managed KMS key; its key
+policy must permit the execution role. The default is the AWS managed Secrets
+Manager key. Private installs do not require Stripe or SES credentials.
+
+For rotation, change the relevant NoEcho parameter through a reviewed change set
+and increment `CoreSecretsRevision` to roll running tasks. Secret updates alone
+do not refresh running ECS containers. Session-key changes invalidate sessions.
+If `ProviderSecret` is empty, first pin it to the old session-key value before
+changing `SessionSecret`; otherwise the provider key would change too.
+Do not rotate the provider key until a separate re-encryption workflow is in
+place; this install change deliberately preserves its value. RootPassword is a
+bootstrap credential, not a password-reset API for an already-created account.
+Use the application's password-management flow to change an existing user's
+password. Automatic rotation is not configured for these application secrets.
+
+Secrets are retained on stack deletion to avoid losing encryption keys. Review
+retention and ownership explicitly before deleting or importing these resources.
+Never commit populated parameter files or secrets, log values, or share them in
+chat. Local development continues to use an uncommitted `.env`.
 
 Both modes provision DynamoDB, a private media bucket, SQS with a dead-letter queue, an EventBridge bus, IAM roles, and CloudWatch logs. Evidence buckets are retained on stack deletion. Web/API/worker run as separate ECS services.
 
 
 The application domain is `smartdetector.com`. Use an ACM certificate covering this domain. The full-stack template accepts an optional `HostedZoneId` to create its Route 53 alias; otherwise configure DNS separately. Publishing buckets already exist and are not created by the application templates.
 
-## Shared ALB and ECS cluster
+## SaaS email verification
+
+New SaaS installations require `SesFrom` (an SES-verified sender in the deployment region) and `PublicOrigin` (the canonical HTTPS site origin). For the hosted site these are `noreply@smartdetector.com` and `https://smartdetector.com`. The templates wire SES sending permissions and configuration into web/API tasks, and reject a SaaS deployment with either value empty. The SES domain identity and its DNS verification must already be configured in that AWS account/region; these templates do not create or import it. SES production access is an account-level prerequisite, not something a release tag enables.
+
+New public accounts, including users created by an administrator, must verify email ownership before signing in. Expiring verification links are consumed atomically; production SaaS never returns them in API responses. Failed email delivery is reported as an error, leaves the account unverified, and releases its resend reservation. Signup/resend throttling uses shared DynamoDB counters with TTL, plus a per-account resend cooldown. Private administrator-managed installations do not require email verification or SES.
+
+`BlockedSignupDomains` is an optional comma-separated blocklist, including subdomains. Its default is empty so Gmail judges are not blocked. To reject Gmail registrations explicitly, set `gmail.com,googlemail.com` in a reviewed CloudFormation changeset. This controls new registrations and pending verification, not already-verified users. Email verification proves inbox access; it does not guarantee that a registrant is human or eliminate all abuse.
+
+## Existing shared ingress
 
 The existing template creates only app services, target groups, and hostname rules—not a new ALB or cluster. Supply Cluster, ListenerArn (HTTPS port 443), LoadBalancerSecurityGroup, VpcId and PrivateSubnets. HTTP-to-HTTPS redirection remains owned by the shared platform. Supply CertificateArn to attach the app certificate via SNI. Optional HostedZoneId requires LoadBalancerDnsName and LoadBalancerCanonicalHostedZoneId to create an alias. Do not overwrite existing DNS records. API priority must be lower than web priority and both unused on the listener. Defaults are 400/401. Keep the platform stack until all attached apps are removed.
 

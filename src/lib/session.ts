@@ -11,7 +11,7 @@ export const sessionCookie='smartdetector_session';
 export function isSecureRequest(req:{nextUrl:{protocol:string};headers:{get(name:string):string|null}}){return req.nextUrl.protocol==='https:'||req.headers.get('x-forwarded-proto')==='https'}
 // The browser-facing Host, not the container's bind address (req.url); never X-Forwarded-Host, so a request cannot
 // point an emailed link or a redirect elsewhere.
-export function browserOrigin(req:{nextUrl:{protocol:string};headers:{get(name:string):string|null}}){return `${isSecureRequest(req)?'https:':'http:'}//${req.headers.get('host')}`}
+export function browserOrigin(req:{nextUrl:{protocol:string};headers:{get(name:string):string|null}}){const configured=process.env.SMARTDETECTOR_PUBLIC_ORIGIN;if(configured){const url=new URL(configured);if(url.protocol!=='https:'||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('Invalid public origin');return url.origin;}if(process.env.NODE_ENV==='production'&&process.env.SMARTDETECTOR_LOCAL_REPLAY!=='true')throw Error('Public email origin is not configured');return `${isSecureRequest(req)?'https:':'http:'}//${req.headers.get('host')}`}
 export function requestOrigin(req:{nextUrl:{protocol:string};headers:{get(name:string):string|null}}){const host=req.headers.get('x-forwarded-host')??req.headers.get('host');const protocol=isSecureRequest(req)?'https:':'http:';return `${protocol}//${host}`}
 export type ResetToken={purpose:'password-reset';userId:string;expiresAt:number};
 export const createResetToken=(userId:string,secret:string)=>signToken<ResetToken>({purpose:'password-reset',userId,expiresAt:Date.now()+900000},secret);

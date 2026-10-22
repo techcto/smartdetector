@@ -1,4 +1,5 @@
 import {productCatalog} from './products';
+import {UpdateCommand} from '@aws-sdk/lib-dynamodb';
 import{randomUUID}from'node:crypto';
 import{DynamoDBClient,CreateTableCommand,UpdateTimeToLiveCommand}from'@aws-sdk/client-dynamodb';
 import{DynamoDBDocumentClient,GetCommand,PutCommand,QueryCommand,DeleteCommand,TransactWriteCommand}from'@aws-sdk/lib-dynamodb';
@@ -38,6 +39,9 @@ function slugify(name:string){return name.toLowerCase().replace(/[^a-z0-9]+/g,'-
 const SINGLETON_PK='SINGLETON',SINGLETON_SK='SINGLETON';
 
 export const dynamoStore={
+  async reserveVerificationEmail(id:string,email:string,sentAt:string,cutoff:string){await ensureTable();try{await client.send(new UpdateCommand({TableName:tableName,Key:{pk:`USER#${id}`,sk:`USER#${id}`},UpdateExpression:'SET verificationSentAt=:sent',ConditionExpression:'email=:email AND emailVerified=:no AND (attribute_not_exists(verificationSentAt) OR verificationSentAt<=:cutoff)',ExpressionAttributeValues:{':email':email,':no':false,':sent':sentAt,':cutoff':cutoff}}));return true;}catch(e){if(e instanceof Error&&e.name==='ConditionalCheckFailedException')return false;throw e;}},
+  async releaseVerificationEmail(id:string,sentAt:string){await ensureTable();try{await client.send(new UpdateCommand({TableName:tableName,Key:{pk:`USER#${id}`,sk:`USER#${id}`},UpdateExpression:'REMOVE verificationSentAt',ConditionExpression:'verificationSentAt=:sent',ExpressionAttributeValues:{':sent':sentAt}}));}catch(e){if(!(e instanceof Error&&e.name==='ConditionalCheckFailedException'))throw e;}},
+  async verifyUserEmail(id:string,email:string){await ensureTable();try{await client.send(new UpdateCommand({TableName:tableName,Key:{pk:`USER#${id}`,sk:`USER#${id}`},UpdateExpression:'SET emailVerified=:yes, updatedAt=:now',ConditionExpression:'email=:email AND emailVerified=:no AND #status=:active',ExpressionAttributeNames:{'#status':'status'},ExpressionAttributeValues:{':email':email,':no':false,':yes':true,':active':'active',':now':new Date().toISOString()}}));return true;}catch(e){if(e instanceof Error&&e.name==='ConditionalCheckFailedException')return false;throw e;}},
   async expireEvidence(org:string,days:number){
     await ensureTable();let cursor:Record<string,unknown>|undefined,deleted=0;
     do{const page=await client.send(new QueryCommand({TableName:tableName,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',ExpressionAttributeValues:{':pk':'ORG#'+org,':prefix':'INCIDENT#'},ExclusiveStartKey:cursor,ConsistentRead:true,Limit:50}));
