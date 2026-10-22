@@ -117,6 +117,18 @@ Record reproducible friction as it occurs. Entries describe observed development
 
 ## Entry format reference
 
+## RN 0.83 to RN 0.72 display sizing on October 22 2026
+
+- **Task attempted:** Preserve the native TV experience while using RN 0.72 for the supported notification implementation.
+- **Steps taken:** Reuse the shared screen styles, build ARMv7 and install on the physical Vega TV. Update the installed app from 0.1.16 build 3 to 0.1.18 build 13.
+- **Expected result:** The same readable full-screen TV composition regardless of HDMI resolution.
+- **Actual result:** The user reported tiny content concentrated toward the top-left. Shared numeric styles were designed for density-independent coordinates, while Vega RN 0.72 uses pixel-based layout. Browser preview checks did not exercise this native coordinate-system difference.
+- **Severity:** High; the app installs and opens but is not comfortably usable from the couch.
+- **Fix:** Use the interactive process's window dimensions and a single native viewport with 960×540 logical design coordinates, scaled uniformly to the actual surface. Layout calculations and scroll offsets remain in the same logical coordinates. The notification task has a separate process, so there is one interactive surface here. The browser adapter keeps ordinary CSS-pixel behavior. This is an app-side runtime-migration correction, not a TV resolution override. The documented V2 dimensions hook exists in the runtime but was not exported by the installed TypeScript definitions; the implementation uses the supported standard hook rather than adding a type shim.
+- **Verification:** ARMv7 release compilation/typecheck and checksum verification passed. The corrected local 0.1.18 build 14 installed and launched on the physical TV. Existing client tests and browser checks passed at 960×540, 1280×720, 1920×1080 and phone size. Coordinate calculations were checked through 4K. User confirmation of physical sizing/focus is still pending; browser checks are not proof of native sizing.
+- **Actionable suggestion:** Include explicit pixel-versus-dp migration guidance in both runtime templates, with a resolution-aware TV layout sample and on-device checks at 720p, 1080p and 4K. Notification runtime compatibility guidance should link to that migration information.
+- **Sources:** [Amazon scrolling sample and migration note](https://github.com/AmazonAppDev/vega-scrolling-sample), [component-scoped dimensions](https://developer.amazon.com/docs/react-native-vega/0.72/usekeplerwindowdimensionsv2).
+
 For each new observation, include the task attempted, exact reproducible steps without credentials, expected and actual result, severity, workaround used, and an actionable suggestion. Link a sanitized issue or test output when useful. Do not include customer footage, account identifiers, tokens, secrets or personal information.
 
 ## Native Vega development friction

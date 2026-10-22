@@ -5,6 +5,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: [
+      { find: /^\.\/viewport$/, replacement: path.join(here, "viewport.ts") },
       { find: /^\.\/notifications$/, replacement: path.join(here, "notifications.ts") },
       { find: /^qrcode-generator$/, replacement: path.join(here, "node_modules/qrcode-generator/dist/qrcode.mjs") },
       { find: /^\.\/config$/, replacement: path.join(here, "config.ts") },

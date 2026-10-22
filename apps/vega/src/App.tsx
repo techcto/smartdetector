@@ -15,7 +15,6 @@ import {
   Text,
   TextInput,
   View,
-  useWindowDimensions,
 } from "react-native";
 import {
   AccessRevoked,
@@ -31,6 +30,7 @@ import { SERVICE_ORIGIN } from "./config";
 import { browserVoiceAvailable, startBrowserVoice } from "./voice";
 import { focusView } from "./focus";
 import { brandMark } from "./brand";
+import { Viewport, useViewportDimensions } from "./viewport";
 import {
   backgroundAlertsAvailable,
   configureBackgroundAlerts,
@@ -246,7 +246,7 @@ export function App() {
       subscription.remove();
     };
   }, []);
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useViewportDimensions();
   const compact = screenHeight < 750;
   const [section, setSection] = useState<"devices" | "events" | "search">(
     "devices"
@@ -603,7 +603,7 @@ export function App() {
     setNotice(null);
   }
   return (
-    <View style={s.app}>
+    <Viewport style={s.app}>
       <View
         style={[
           s.header,
@@ -1320,7 +1320,7 @@ export function App() {
           </View>
         </View>
       )}
-    </View>
+    </Viewport>
   );
 }
 export default App;
