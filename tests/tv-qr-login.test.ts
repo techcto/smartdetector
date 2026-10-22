@@ -20,3 +20,23 @@ test("QR code survives sign-in redirect without accepting arbitrary return URLs"
     "/tv/connect"
   );
 });
+test("TV device links survive sign-in redirect; other paths do not", async () => {
+  const next = async (path: string) =>
+    new URL(
+      (await proxy(new NextRequest("https://smartdetector.com" + path))).headers.get("location")!
+    ).searchParams.get("next");
+  for (const path of [
+    "/devices",
+    "/devices/firetv-4f3916a0-bffa-4789-959d-e3c71fbaa199",
+    "/devices/integrations/ring",
+    "/devices/front_door/live",
+  ])
+    assert.equal(await next(path), path);
+  for (const path of [
+    "/devices/a/b/c/d",
+    "/devices/a%2F..%2Fx",
+    "/devices.evil",
+    "/devicesx",
+  ])
+    assert.equal(await next(path), null);
+});
