@@ -183,7 +183,7 @@ The API calls AutoVision and ingests returned motion observations. A missing sys
 
 ## AWS Marketplace And Deployment
 
-Subscribe through [AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-l5jk7kn3222am) before launching images that require a subscription. The orange **LAUNCH AWS** button opens the standalone CloudFormation template; it does not subscribe you, select a network, or create a stack until you review and submit the parameters.
+Marketplace installation is not currently offered for this submission. Public Marketplace and one-click AWS launch links are disabled. The templates below remain technical references; publishing an image or template does not establish Marketplace approval. Use the hosted site or local development instructions for evaluation.
 
 | Installation | Template |
 | --- | --- |

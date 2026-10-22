@@ -24,6 +24,56 @@ jobs:
           name: smartdetector-vega-source-${{ github.ref_name }}
           path: smartdetector-vega-source.tar.gz
           retention-days: 90
+  publish:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: vega-release-publication
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: smartdetector-vega-armv7-${{ github.ref_name }}
+          path: release
+      - uses: actions/download-artifact@v4
+        with:
+          name: smartdetector-vega-source-${{ github.ref_name }}
+          path: release
+      - name: Prepare public app download
+        working-directory: release
+        run: |
+          set -euo pipefail
+          test -s armv7-release/smartdetectorconsole_armv7.vpkg
+          mv armv7-release/smartdetectorconsole_armv7.vpkg .
+          sha256sum smartdetectorconsole_armv7.vpkg > SHA256SUMS
+          test -s sdk-version.txt
+          test -s native-package-lock.json
+          test -s security-audit.json
+          test -s smartdetector-vega-source.tar.gz
+      - name: Publish versioned app and update latest download
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > existing-draft.txt 2>/dev/null; then
+            if [ "$(<existing-draft.txt)" != true ]; then
+              gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fx smartdetectorconsole_armv7.vpkg
+              echo 'Published app release already exists; leaving assets unchanged.'
+              exit 0
+            fi
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "SmartDetector Vega $RELEASE_TAG" --notes 'Native ARMv7 app for supported Vega Fire TV devices. Download smartdetectorconsole_armv7.vpkg and follow the judge field guide in the repository. This is not the x86_64 simulator package. Native dependency audit evidence is included; a successful build is not Appstore certification.'
+          fi
+          gh release upload "$RELEASE_TAG" --clobber smartdetectorconsole_armv7.vpkg SHA256SUMS sdk-version.txt native-package-lock.json security-audit.json smartdetector-vega-source.tar.gz
+          release_id="$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" --jq '.id')"
+          gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -F draft=false -f make_latest=legacy
   package:
     needs: source
     runs-on: ubuntu-latest

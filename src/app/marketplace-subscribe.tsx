@@ -1,5 +1,5 @@
 export default function MarketplaceSubscribe(){
- const value=process.env.SMARTDETECTOR_MARKETPLACE_URL??'https://aws.amazon.com/marketplace/pp/prodview-l5jk7kn3222am';
+ const value=process.env.SMARTDETECTOR_MARKETPLACE_URL??'';
  if(!value)return null;
  let url:URL;try{url=new URL(value)}catch{return null}
  if(url.protocol!=='https:'||url.hostname!=='aws.amazon.com'||!url.pathname.startsWith('/marketplace/'))return null;

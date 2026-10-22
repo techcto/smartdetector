@@ -17,11 +17,9 @@ CONNECTED SIGNALS. CLEAR INCIDENTS. FASTER RESPONSE.
 
 **A native Vega TV experience that turns connected-camera events into something you can browse, understand and review from your couch.**
 
-[Start the judge walkthrough](docs/HACKATHON-FIELD-GUIDE.md) · [Technical README](README-TECHNICAL.md) · [AWS architecture](docs/AWS-ARCHITECTURE.md) · [Native app builds](https://github.com/techcto/smartdetector/actions/workflows/release-vega.yml)
+[Start the judge walkthrough](docs/HACKATHON-FIELD-GUIDE.md) · [Technical README](README-TECHNICAL.md) · [AWS architecture](docs/AWS-ARCHITECTURE.md) · [Download latest Vega app](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_armv7.vpkg)
 
 <a href="https://smartdetector.com"><img src="assets/launch-website.svg" width="200" alt="Visit SmartDetector" /></a>
-<a href="https://aws.amazon.com/marketplace/pp/prodview-l5jk7kn3222am"><img src="assets/launch-marketplace.svg" width="200" alt="Subscribe to SmartDetector on AWS Marketplace" /></a>
-<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https://smartdetector.s3.us-east-1.amazonaws.com/cloudformation/smartdetector.yaml&amp;stackName=smartdetector"><img src="assets/launch-aws.svg" width="200" alt="Launch SmartDetector with AWS CloudFormation" /></a>
 
 ## A name waiting for the right idea
 
@@ -83,7 +81,7 @@ Its five tools are **read-only**: agents can inspect devices and events, not con
 
 **Judges: [follow the illustrated field guide](docs/HACKATHON-FIELD-GUIDE.md).** It starts at simulator installation, then walks through free SmartDetector signup, TV approval, Ring staging access, and the no-camera developer route. You do not need to buy a SmartDetector plan for the basic walkthrough; contact us if quotas block evaluation.
 
-- **Have a Vega Fire TV?** Get an ARMv7 package from a successful [native release run](https://github.com/techcto/smartdetector/actions/workflows/release-vega.yml).
+- **Have a Vega Fire TV?** [Download the latest ARMv7 app](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_armv7.vpkg) and install it using the field guide. [Release details and checksum](https://github.com/techcto/smartdetector/releases/latest). Until the first public app release is published, the [v0.1.18 workflow download](https://github.com/techcto/smartdetector/actions/runs/39792550577/artifacts/12433155518) remains available with GitHub sign-in.
 - **Using the simulator?** Follow the guide’s x86_64 build instructions; the physical-TV package is not the simulator package.
 - **No Ring camera?** Use the documented localhost Ring Playground path. Sample-stream analysis shares the processing pipeline but is not a production motion-webhook test.
 - **Building or deploying?** Open the [technical README](README-TECHNICAL.md), [Ubuntu setup](docs/ubuntu-tv-development.md), or [CloudFormation guide](devops/cloudformation/README.md).

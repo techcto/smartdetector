@@ -26,6 +26,8 @@ On TV choose Get pairing code. On your phone open `https://smartdetector.com/tv/
 
 ## Release management
 
+Successful stable version-tag builds publish a public GitHub Release only after packaging and artifact upload succeed. Assets are uploaded to a draft before publication; existing published versions are not overwritten. The stable download is [latest ARMv7 app](https://github.com/techcto/smartdetector/releases/latest/download/smartdetectorconsole_armv7.vpkg), with checksum and SDK/audit evidence on the [release page](https://github.com/techcto/smartdetector/releases/latest). GitHub selects latest using stable release metadata/version ordering; prerelease tags and manual non-tag builds do not promote it. This uses GitHub’s latest-release URL, not a mutable Git tag or container tag. It becomes available after the first successful publication job. Public release downloads do not require Actions-artifact sign-in and are separate from the 90-day workflow artifacts.
+
 Every normal CI run tests the dependency-free client logic. `release-vega.yml` runs on version tags and publishes a **source archive** workflow artifact independently of ECS/AWS Marketplace releases. This is not an installable app.
 
 Package jobs build a version-pinned SDK Docker image on a GitHub-hosted Ubuntu runner, then run client tests and package compilation inside it. Tag releases and manual releases build and retain ARMv7 `.vpkg` workflow artifacts for 90 days; missing output fails the job. No self-hosted runner or repository opt-in variable is required. Amazon Appstore submission remains manual and separate from AWS Marketplace container delivery. Capture the SDK version, package checksum and device test results with each submitted build.
