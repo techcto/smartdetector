@@ -14,8 +14,12 @@ export async function writeHistory(org:string,at:string,item:Record<string,unkno
 export async function markHistoryPurge(org:string){const cutoff=Date.now();if(table){try{await db.send(new PutCommand({TableName:table,Item:{...key(org),cutoff},ConditionExpression:'attribute_not_exists(#c) OR #c < :c',ExpressionAttributeNames:{'#c':'cutoff'},ExpressionAttributeValues:{':c':cutoff}}))}catch(e){if(!(e instanceof Error&&e.name==='ConditionalCheckFailedException'))throw e;return historyCutoff(org)}}else cutoffs.set(org,Math.max(cutoff,memoryHistoryCutoff(org)));return cutoff}
 export async function deleteStoredHistory(org:string,nodeIds:string[],cutoff:number){
  if(!table)throw Error('Persistent history store required');
+ // Detached devices no longer appear in inventory, but their retained events
+ // still belong to a later history purge or account deletion.
+ const ids=new Set(nodeIds);let privacyCursor:Record<string,unknown>|undefined;
+ do{const page=await db.send(new QueryCommand({TableName:table,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',ExpressionAttributeValues:{':pk':'ORG#'+org,':prefix':'DEVICE_PRIVACY#'},ConsistentRead:true,ExclusiveStartKey:privacyCursor}));for(const row of page.Items??[])ids.add(String(row.sk).slice('DEVICE_PRIVACY#'.length));privacyCursor=page.LastEvaluatedKey;}while(privacyCursor);
  let deleted=0;
- const partitions=[{pk:'ORG#'+org,prefix:'INCIDENT#'},{pk:'ORG#'+org,prefix:'RINGJOB#'},...nodeIds.map(id=>({pk:'ORG#'+org+'#NODE#'+id,prefix:'EVENT#'}))];
+ const partitions=[{pk:'ORG#'+org,prefix:'INCIDENT#'},{pk:'ORG#'+org,prefix:'RINGJOB#'},...[...ids].map(id=>({pk:'ORG#'+org+'#NODE#'+id,prefix:'EVENT#'}))];
  for(const {pk,prefix} of partitions){let cursor:Record<string,unknown>|undefined;do{const page=await db.send(new QueryCommand({TableName:table,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',ExpressionAttributeValues:{':pk':pk,':prefix':prefix},ConsistentRead:true,ExclusiveStartKey:cursor}));
   for(const row of page.Items??[]){const field=prefix==='RINGJOB#'?'event':prefix==='INCIDENT#'?'startedAt':'at',time=prefix==='RINGJOB#'?Number(row.event?.timestamp):Date.parse(row[field]);if(!Number.isFinite(time)||time<=cutoff){try{await db.send(new DeleteCommand({TableName:table,Key:{pk:row.pk,sk:row.sk},ConditionExpression:row[field]===undefined?'attribute_not_exists(#stamp)':'#stamp=:stamp',ExpressionAttributeNames:{'#stamp':field},...(row[field]===undefined?{}:{ExpressionAttributeValues:{':stamp':row[field]}})}));deleted++}catch(e){if(!(e instanceof Error&&e.name==='ConditionalCheckFailedException'))throw e}}}
   cursor=page.LastEvaluatedKey;

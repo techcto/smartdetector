@@ -13,7 +13,7 @@ test('device deletion is confirmed, location-scoped, erases evidence and blocks 
  for(const [org,id] of [[a.id,'camera'],[a.id,'keep'],[b.id,'camera']]){await ingest(org,'test',{device_id:id,type:'motion',value:1},at);await store.putIncident({tenantId:org,serverId:id,agentId:'test',incidentId:org+'-'+id,state:'review',startedAt:at,updatedAt:at,payload:{evidenceFrames:[{preview:'data:image/jpeg;base64,test'}]}})}
  const token=await createSession({id:'root',username:'root',role:'root',orgId:a.id,expiresAt:Date.now()+60000},secret);
  const context={params:Promise.resolve({id:'camera'})};
- const request=(origin='https://test.example',confirmation='DELETE DEVICE')=>new NextRequest('https://test.example/api/v1/devices/camera',{method:'DELETE',headers:{host:'test.example',origin,cookie:sessionCookie+'='+token,'Content-Type':'application/json'},body:JSON.stringify({deviceId:'camera',confirmation})});
+ const request=(origin='https://test.example',confirmation='DELETE')=>new NextRequest('https://test.example/api/v1/devices/camera',{method:'DELETE',headers:{host:'test.example',origin,cookie:sessionCookie+'='+token,'Content-Type':'application/json'},body:JSON.stringify({deviceId:'camera',confirmation})});
  assert.equal((await DELETE(new NextRequest('https://test.example',{method:'DELETE'}),context)).status,403);
  assert.equal((await DELETE(request('https://foreign.example'),context)).status,403);
  assert.equal((await DELETE(request(undefined,'bad'),context)).status,400);

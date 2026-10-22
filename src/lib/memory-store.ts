@@ -53,6 +53,7 @@ export const memoryStore={
   async removeDevice(orgId:string,id:string){await markDeviceRemoved(orgId,id);let deleted=0;for(const [k,row] of state.incidents){if(row.tenantId===orgId&&row.serverId===id){state.incidents.delete(k);deleted++}}const k=key(orgId,id);deleted+=(state.events.get(k)??[]).length;state.events.delete(k);state.nodes.delete(k);deleted+=(await import("./ring-jobs")).deleteMemoryDeviceJobs(orgId,id);await (await import('./people')).prunePersonActivity(orgId);return {deleted}},
   async upsertNode(v:Node){await assertDeviceHistory(v.tenantId,v.serverId);const existing=state.nodes.get(key(v.tenantId,v.serverId));state.nodes.set(key(v.tenantId,v.serverId),{...existing,...v,createdAt:existing?.createdAt??v.createdAt})},
   async nodes(tenant:string){return[...state.nodes.values()].filter(x=>x.tenantId===tenant)},
+  async detachDevice(orgId:string,id:string){await markDeviceRemoved(orgId,id);state.nodes.delete(key(orgId,id));},
   async node(tenant:string,serverId:string){return state.nodes.get(key(tenant,serverId))??null},
   async putIncident(v:IncidentRecord){await assertDeviceHistory(v.tenantId,v.serverId,v.startedAt);if(Date.parse(v.startedAt)<=memoryHistoryCutoff(v.tenantId))throw Error('History was purged');state.incidents.set(key(v.tenantId,v.incidentId),v)},
   async incident(tenant:string,incidentId:string){return state.incidents.get(key(tenant,incidentId))??null},

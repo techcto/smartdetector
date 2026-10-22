@@ -47,6 +47,7 @@ export const dynamoStore={
     }while(cursor);return deleted;
   },
   async removeDevice(orgId:string,id:string){await ensureTable();await markDeviceRemoved(orgId,id);const deleted=await deleteDeviceHistory(orgId,id);await client.send(new DeleteCommand({TableName:tableName,Key:{pk:'ORG#'+orgId,sk:'NODE#'+id}}));await (await import('./people')).prunePersonActivity(orgId);return {deleted}},
+  async detachDevice(orgId:string,id:string){await ensureTable();await markDeviceRemoved(orgId,id);await client.send(new DeleteCommand({TableName:tableName,Key:{pk:'ORG#'+orgId,sk:'NODE#'+id}}));},
   async purgeHistory(orgId:string){await ensureTable();const cutoff=await markHistoryPurge(orgId),nodes=await this.nodes(orgId);const deleted=await deleteStoredHistory(orgId,nodes.map(n=>n.serverId),cutoff);await (await import('./people')).prunePersonActivity(orgId);return{deleted,cutoff}},
   async createOrganization(v:{name:string;ownerId:string;orgType:OrgType;contactEmail?:string;contactPhone?:string}):Promise<Organization>{
     await ensureTable();
@@ -136,8 +137,9 @@ export const dynamoStore={
   },
   async nodes(tenant:string):Promise<Node[]>{
     await ensureTable();
-    const r=await client.send(new QueryCommand({TableName:tableName,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',ExpressionAttributeValues:{':pk':`ORG#${tenant}`,':prefix':'NODE#'}}));
-    return (r.Items??[]) as Node[];
+    const nodes:Node[]=[];let cursor:Record<string,unknown>|undefined;
+    do{const r=await client.send(new QueryCommand({TableName:tableName,KeyConditionExpression:'pk=:pk AND begins_with(sk,:prefix)',ExpressionAttributeValues:{':pk':`ORG#${tenant}`,':prefix':'NODE#'},ConsistentRead:true,ExclusiveStartKey:cursor}));nodes.push(...(r.Items??[]) as Node[]);cursor=r.LastEvaluatedKey;}while(cursor);
+    return nodes;
   },
   async node(tenant:string,serverId:string):Promise<Node|null>{
     await ensureTable();
