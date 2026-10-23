@@ -2110,9 +2110,6 @@
         "Queues": [
           {
             "Ref": "Queue"
-          },
-          {
-            "Ref": "DeadLetterQueue"
           }
         ],
         "PolicyDocument": {
@@ -2123,20 +2120,12 @@
               "Effect": "Deny",
               "Principal": "*",
               "Action": "sqs:*",
-              "Resource": [
-                {
-                  "Fn::GetAtt": [
-                    "Queue",
-                    "Arn"
-                  ]
-                },
-                {
-                  "Fn::GetAtt": [
-                    "DeadLetterQueue",
-                    "Arn"
-                  ]
-                }
-              ],
+              "Resource": {
+                "Fn::GetAtt": [
+                  "Queue",
+                  "Arn"
+                ]
+              },
               "Condition": {
                 "Bool": {
                   "aws:SecureTransport": "false",
@@ -2380,6 +2369,39 @@
             },
             {
               "Ref": "SessionSecret"
+            }
+          ]
+        }
+      }
+    },
+    "DeadLetterQueuePolicy": {
+      "Type": "AWS::SQS::QueuePolicy",
+      "Properties": {
+        "Queues": [
+          {
+            "Ref": "DeadLetterQueue"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyInsecureTransport",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "sqs:*",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "DeadLetterQueue",
+                  "Arn"
+                ]
+              },
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                  "aws:PrincipalIsAWSService": "false"
+                }
+              }
             }
           ]
         }

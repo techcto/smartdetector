@@ -4,6 +4,15 @@ import {readFileSync} from 'node:fs';
 
 for (const file of ['smartdetector.yaml', 'smartdetector-existing.yaml']) {
   const template = JSON.parse(readFileSync(new URL('../cloudformation/' + file, import.meta.url)));
+  test(file + ': each SQS TLS policy is scoped to its own single queue resource', () => {
+    for (const [policy, queue] of [['QueuePolicy', 'Queue'], ['DeadLetterQueuePolicy', 'DeadLetterQueue']]) {
+      const properties = template.Resources[policy].Properties;
+      assert.deepEqual(properties.Queues, [{Ref: queue}]);
+      const deny = properties.PolicyDocument.Statement.find(value => value.Sid === 'DenyInsecureTransport');
+      assert.deepEqual(deny.Resource, {'Fn::GetAtt': [queue, 'Arn']});
+      assert.equal(deny.Condition.Bool['aws:SecureTransport'], 'false');
+    }
+  });
   test(file + ': core secrets retain original values and never appear in task environment', () => {
     const entries = [
       ['RootPasswordSecret', 'RootPassword', 'SMARTDETECTOR_ROOT_PASSWORD'],
