@@ -9,9 +9,9 @@ export async function syncRingCameras(orgId:string,connectionId:string,fetcher:t
  for(const resource of document.data){
   const externalId=resource.id;if(typeof externalId!=='string'||!/^[a-zA-Z0-9_.:-]{1,200}$/.test(externalId))continue;
   const serverId=(config.playgroundExpiresAt?connectionId+'-':'ring-')+createHash('sha256').update(externalId).digest('hex').slice(0,24),previous=await store.node(orgId,serverId),at=new Date().toISOString();
-  // Removed cameras stay skipped unless the caller is an explicit reconnect (a freshly pasted Playground token). Deleted history stays deleted.
-  if((await devicePrivacy(orgId,serverId))?.removed){if(!restoreRemoved||!config.playgroundExpiresAt)continue;await restoreDevice(orgId,serverId);}
   if(previous?.connectionId&&previous.connectionId!==connectionId)continue;
+  // Only explicit linking or user-requested discovery restores authorized cameras. Keep the history cutoff intact.
+  if((await devicePrivacy(orgId,serverId))?.removed){if(!restoreRemoved)continue;await restoreDevice(orgId,serverId);}
   await store.upsertNode({...previous,tenantId:orgId,serverId,agentId:'ring',providerKey:'ring',platform:'ring',connectionId,modelId:previous?.modelId??'ring-camera',externalId,displayName:(config.playgroundExpiresAt?'PLAYGROUND · ':'')+(typeof resource.attributes?.name==='string'?resource.attributes.name.slice(0,100):'Ring camera'),tags:config.playgroundExpiresAt?['ring-playground']:previous?.tags??[],status:config.playgroundExpiresAt?'healthy':previous?.status??'pending',createdAt:previous?.createdAt??at,lastHeartbeat:config.playgroundExpiresAt?at:previous?.lastHeartbeat??new Date(0).toISOString()});count++;
  }return count;
 }
