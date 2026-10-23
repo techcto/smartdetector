@@ -49,3 +49,27 @@ test('checkout retries recover the same attempt, expire superseded sessions and 
  sessions.get(changed.id)!.status='complete';
  await assert.rejects(checkoutForWorkspace('retry-checkout',params,client),/completed/);assert.equal(attempts.size,2);
 });
+
+test('a checkout Stripe rejected is not replayed: the next try starts a fresh attempt with the current params',async()=>{
+ const keys:string[]=[],sent:unknown[]=[];let reject=true;
+ const refuse=()=>Object.assign(Error('custom_text cannot be used with Managed Payments'),{type:'StripeInvalidRequestError'});
+ const client={checkout:{sessions:{create:async(params:unknown,options:{idempotencyKey:string})=>{keys.push(options.idempotencyKey);sent.push(params);if(reject)throw refuse();return {id:'cs_fixed',status:'open',url:'https://checkout.example/cs_fixed'};}}}} as unknown as Stripe;
+ const failing:Stripe.Checkout.SessionCreateParams={mode:'subscription',custom_text:{submit:{message:'25 devices included'}},success_url:'https://localhost/success'};
+ await assert.rejects(checkoutForWorkspace('rejected-checkout',failing,client),/Managed Payments/);
+ await assert.rejects(checkoutForWorkspace('rejected-checkout',failing,client),/Managed Payments/);
+ assert.equal(new Set(keys).size,2,'a rejected attempt is cleared, not replayed under its old idempotency key');
+ reject=false;const fixed={...failing,managed_payments:{enabled:false}};
+ assert.equal((await checkoutForWorkspace('rejected-checkout',fixed,client)).id,'cs_fixed');
+ assert.deepEqual(sent.at(-1),fixed);assert.equal(new Set(keys).size,3);
+});
+
+test('a saved attempt from before the fix is replayed once; when Stripe refuses it, the current params get a new attempt',async()=>{
+ const keys:string[]=[];const failed=new Set<string>();
+ const client={checkout:{sessions:{create:async(params:{managed_payments?:unknown},options:{idempotencyKey:string})=>{keys.push(options.idempotencyKey);if(!params.managed_payments||failed.has(options.idempotencyKey)){failed.add(options.idempotencyKey);throw Object.assign(Error('stored 400'),{type:'StripeInvalidRequestError'});}return {id:'cs_new',status:'open',url:'u'};}}}} as unknown as Stripe;
+ const old:Stripe.Checkout.SessionCreateParams={mode:'subscription',success_url:'https://localhost/success'};
+ // Simulate the stuck record: the first call saves the attempt, and a lost connection (not a Stripe refusal) leaves it behind.
+ const lost={checkout:{sessions:{create:async()=>{throw Error('lost response')}}}} as unknown as Stripe;
+ await assert.rejects(checkoutForWorkspace('stuck-checkout',old,lost),/lost response/);
+ const session=await checkoutForWorkspace('stuck-checkout',{...old,managed_payments:{enabled:false}},client);
+ assert.equal(session.id,'cs_new');assert.equal(keys.length,2);assert.notEqual(keys[0],keys[1]);
+});

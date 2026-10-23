@@ -26,7 +26,7 @@ export async function POST(req:NextRequest){
    if(!matchesDevicePrice(price,product))return NextResponse.json({error:'Stripe pricing has not been updated for this plan. Please contact support.'},{status:503});
    const quantity=deviceQuantity(await store.nodes(session.orgId));
    const metadata={orgId:session.orgId,productId:product.id,deviceBillingTerms:DEVICE_BILLING_TERMS,deviceBillingRevision:'0'};
-   const checkout=await checkoutForWorkspace(session.orgId,{mode:'subscription',allow_promotion_codes:true,line_items:[{price:product.stripePriceId,quantity}],metadata,subscription_data:{metadata},custom_text:{submit:{message:`${product.serverLimit} devices included at $${product.monthlyPrice}/month. Additional registered devices cost $2/device/month, prorated on your next invoice. Offline devices count until removed.`}},success_url:origin+'/settings/billing?checkout=success',cancel_url:origin+'/settings/billing?checkout=canceled'},client);
+   const checkout=await checkoutForWorkspace(session.orgId,{mode:'subscription',allow_promotion_codes:true,line_items:[{price:product.stripePriceId,quantity}],metadata,managed_payments:{enabled:false},subscription_data:{metadata},custom_text:{submit:{message:`${product.serverLimit} devices included at $${product.monthlyPrice}/month. Additional registered devices cost $2/device/month, prorated on your next invoice. Offline devices count until removed.`}},success_url:origin+'/settings/billing?checkout=success',cancel_url:origin+'/settings/billing?checkout=canceled'},client);
    return NextResponse.json({url:checkout.url});
   });
   return result??NextResponse.json({error:'Billing is busy. Please retry.'},{status:409});
