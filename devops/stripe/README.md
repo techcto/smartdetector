@@ -2,8 +2,9 @@
 
 SmartDetector uses its own Stripe account, separate from AutoVision, so each
 app's webhook only receives its own customers' events. Plans match the app:
-Dev is free (1 device), Starter is $49/month (5 devices), Scale is $199/month
-(50 devices). Private installs (`SMARTDETECTOR_DEPLOYMENT_MODE=on-premise`) do
+Free includes 10 devices, Starter is $49/month (25 devices), Scale is $99/month
+(50 devices). Both paid plans bill additional registered devices at $2/device/month.
+Private installs (`SMARTDETECTOR_DEPLOYMENT_MODE=on-premise`) do
 not use Stripe.
 
 Offline preview (no credentials or network):
@@ -26,6 +27,25 @@ node devops/stripe/setup-plans.mjs
 4. `SMARTDETECTOR_DEPLOYMENT_MODE=saas`, then `docker compose up -d`. Test with
    card `4242 4242 4242 4242`; verified webhooks, not the redirect, activate plans.
 
+Local Compose pins `SMARTDETECTOR_STRIPE_MODE=sandbox` and rejects live keys.
+Its production-built containers can exercise email verification locally using
+displayed log-mode links only when the explicit replay flag, local AWS dummy
+credentials, exact local table and loopback/Docker DynamoDB emulator endpoint
+all match. Deployed AWS SaaS does not meet that boundary and still requires real
+SES; setting the replay flag alone never enables a production verification bypass.
+Run `node devops/stripe/local-webhooks.mjs` to forward sandbox subscription events
+to the loopback-only web port (8082 by default). It loads the ignored local `.env`,
+refuses live keys, checks the signing secret and redacts credential output. The
+official Stripe CLI must be installed or available at ignored `bin/stripe`.
+Keep this forwarding process running while testing Checkout. Its signing secret
+is specific to local forwarding, not the live Dashboard webhook endpoint.
+
+`STRIPE_SECRET_KEY=sk_test_... node --import tsx devops/stripe/sandbox-check.ts`
+runs isolated sandbox-only request, quantity, proration, renewal and cancellation
+checks. It refuses production mode or an app table, uses test clocks and cleans
+up simulation resources; reusable sandbox products/prices remain. Never use a
+live key, production database or real card to run this check.
+
 ## Prod (live mode)
 
 1. Release a tagged version so CI publishes images with the current code.
@@ -44,6 +64,38 @@ The script uses stable IDs, lookup keys and idempotency keys, so reruns reuse
 existing resources and only refresh product display; conflicting prices fail
 for manual review. Live keys require `--apply --live`. Never commit keys,
 webhook secrets or filled parameter files, and never mix test and live values.
+
+## Device billing (new subscriptions)
+
+The setup script creates new `*_usd_monthly_devices_v2` licensed graduated prices:
+the first tier is the monthly base fee with 25/50 included devices, followed by
+$2 per additional device. It does not modify legacy flat-rate prices or silently
+change existing subscriptions. Update the two price-ID parameters to the IDs
+printed by the script; old IDs are rejected by the new checkout code.
+
+Customers explicitly accept automatic device billing before checkout; Stripe
+Checkout repeats the rate and stores the terms version in subscription metadata.
+All registered devices in the selected workspace count, including offline devices
+and Fire TV displays, until removed. Historical events do not count. For example,
+30 Starter devices cost $59/month; 60 Scale devices cost $119/month, before taxes
+and discounts. Zero registered devices still incurs the plan's base fee.
+
+The existing worker reconciles current inventory about once per minute. It uses
+a shared DynamoDB lease and Stripe idempotency keys, updates only consented v2
+subscription quantities, and retries failures on later passes. Stripe prorates
+additions/removals onto the next invoice (`create_prorations`), rather than making
+an immediate charge for every device change. Stripe invoices and collection
+settings control actual automatic payment, including any required authentication.
+Existing unpaid or canceled subscriptions are not quantity-updated. A canceled
+subscription does not become chargeable merely because devices remain registered.
+
+Before production rollout: provision matching v2 prices in the correct Stripe
+environment; set both price IDs, live credentials and live webhook signing key
+through the reviewed stack configuration/rotation process; verify Customer
+Portal configuration references the intended plans and does not permit manual
+quantity changes. Test additions, removals, retries and invoice previews in a
+sandbox first. Do not use real charges as a smoke test. Existing customers need
+an explicit migration/consent flow before v2 automatic overages apply.
 
 ## Secrets Manager (standalone and shared-ingress installs)
 
@@ -88,6 +140,8 @@ portal. Secrets Manager does not automatically rotate Stripe-issued keys.
 Stack-managed credentials have Retain policies: deleting the app preserves the
 secret. Review retained secrets explicitly; do not switch ownership casually.
 Keep production and sandbox in separate secrets, stacks and access policies.
+CloudFormation `StripeMode` defaults to `live`; isolated cloud sandbox stacks
+must explicitly select `sandbox`. The application refuses a key/mode mismatch.
 
 Session-signing, provider-encryption and root bootstrap secrets also use Secrets
 Manager in both install templates; see the CloudFormation README for migration

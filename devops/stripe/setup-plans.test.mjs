@@ -35,7 +35,9 @@ test('setup reuses plans without duplicating resources', async () => {
   assert.deepEqual(await setup(client), first);
   assert.equal(products.size, 2);
   assert.equal(prices.length, 2);
-  assert.deepEqual(prices.map(p => p.unit_amount), [4900, 19900]);
+  assert.deepEqual(prices.map(p => p.tiers[0].flat_amount), [4900, 9900]);
+  assert.deepEqual(prices.map(p => p.tiers[0].up_to), [25, 50]);
+  assert.ok(prices.every(p=>p.billing_scheme==='tiered'&&p.tiers_mode==='graduated'&&p.tiers[1].unit_amount===200));
 });
 
 test('products get Checkout names, descriptions and one uploaded logo, updated in place on rerun', async () => {
@@ -44,13 +46,25 @@ test('products get Checkout names, descriptions and one uploaded logo, updated i
   await setup(client, { data: Buffer.from('png'), name: 'logo.png' });
   const starter = products.get('smartdetector_starter_v1');
   assert.equal(starter.name, 'SmartDetector Starter');
-  assert.match(starter.description, /Up to 5 devices/);
+  assert.match(starter.description, /25 registered devices included/);
+  assert.match(starter.description, /\$2\/device\/month/);
+  assert.equal(starter.metadata.included_devices,'25');
   assert.deepEqual(starter.images, ['https://files.stripe.com/links/logo']);
   assert.equal(starter.metadata.logo_file, 'file_1');
   assert.deepEqual(uploads, ['business_logo'], 'logo uploaded once and reused');
   const before = updates.length;
   await setup(client, { data: Buffer.from('png'), name: 'logo.png' });
   assert.equal(updates.length, before, 'no updates when display is already current');
+});
+
+test('new device prices do not overwrite legacy flat-rate prices',async()=>{
+ const {client,prices}=fakeStripe();
+ prices.push({id:'legacy',lookup_key:'smartdetector_scale_v1_usd_monthly',unit_amount:19900});
+ await setup(client);
+ assert.equal(prices[0].unit_amount,19900);
+ assert.equal(prices.length,3);
+ prices[1].tiers[1].unit_amount=300;
+ await assert.rejects(setup(client),/Price conflict/);
 });
 
 const dev50 = { SMARTDETECTOR_COUPON_CODE: 'SMARTDETECTOR_DEV50', SMARTDETECTOR_COUPON_PERCENT_OFF: '50', SMARTDETECTOR_COUPON_DURATION: '3' };

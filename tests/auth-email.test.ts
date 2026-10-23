@@ -19,6 +19,13 @@ const password = "long-enough-pass";
 const tokenOf = (link: string) => new URL(link).searchParams.get("token");
 const account = (username: string, email: string, next?: string) => signup(post("/api/auth/signup", { username, displayName: username, email, password, next }));
 
+test('plain signup accepts the browser null destination and sends a verification email without logging in',async()=>{
+ const response=await signup(post('/api/auth/signup',{username:'plain-signup',displayName:'Plain signup',email:'plain-signup@example.com',password,next:null}));
+ assert.equal(response.status,201);assert.equal(response.cookies.get('smartdetector_session'),undefined);
+ assert.equal((await response.json()).status,'verification-sent');
+ assert.equal((await store.userByName('plain-signup'))?.emailVerified,false);
+});
+
 test("signup requires an email, stores it normalized and unverified, and starts no session", async () => {
   assert.equal((await signup(post("/api/auth/signup", { username: "noemail", displayName: "No Email", password }))).status, 400);
   const res = await account("withemail", " Person@Example.COM ");

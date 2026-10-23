@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import Stripe from 'stripe';
 
 export const plans = [
-  { id: 'starter', name: 'SmartDetector Starter', cents: 4900, devices: 5, env: 'STRIPE_STARTER_PRICE_ID' },
-  { id: 'scale', name: 'SmartDetector Scale', cents: 19900, devices: 50, env: 'STRIPE_SCALE_PRICE_ID' },
+  { id: 'starter', name: 'SmartDetector Starter', cents: 4900, devices: 25, extraCents: 200, env: 'STRIPE_STARTER_PRICE_ID' },
+  { id: 'scale', name: 'SmartDetector Scale', cents: 9900, devices: 50, extraCents: 200, env: 'STRIPE_SCALE_PRICE_ID' },
 ];
 // Shown in the Checkout order summary. Keep descriptions factual: what the plan includes, nothing promised beyond the app.
-const describe = devices => `Up to ${devices} devices: camera and sensor events, AutoVision person and object detection, event history with image review, and alert notifications. Cancel anytime.`;
+const describe = devices => `${devices} registered devices included. Additional devices: $2/device/month, automatically billed with prorated changes on your next invoice. Offline devices count until removed. Camera and sensor events, event history and alert notifications. Cancel anytime.`;
 // Optional percent-off coupon with one customer-facing promotion code, redeemed on Stripe Checkout. Supplied at run time,
 // never committed: this repository is public. Use different codes in test and live mode.
 export const couponEnv = ['SMARTDETECTOR_COUPON_CODE', 'SMARTDETECTOR_COUPON_PERCENT_OFF', 'SMARTDETECTOR_COUPON_DURATION'];
@@ -22,8 +22,8 @@ async function ensureProduct(client, id, display, metadata, image) {
   if (product.deleted || !product.active) throw new Error(`Unavailable product: ${id}`);
   // Checkout branding needs the logo as a Stripe file ID (logo_file); the product image needs its public link.
   const logo = product.images?.length && product.metadata?.logo_file ? undefined : await image?.();
-  if (product.name !== display.name || product.description !== display.description || logo)
-    product = await client.products.update(id, { ...display, ...(logo ? { images: [logo.url], metadata: { ...product.metadata, logo_file: logo.file } } : {}) });
+  if (product.name !== display.name || product.description !== display.description || logo || Object.entries(metadata).some(([key,value]) => product.metadata?.[key] !== value))
+    product = await client.products.update(id, { ...display, metadata: {...product.metadata, ...metadata, ...(logo ? {logo_file:logo.file} : {})}, ...(logo ? { images: [logo.url] } : {}) });
   return product;
 }
 
@@ -37,21 +37,24 @@ export async function setup(client, image, env = {}) {
   for (const plan of plans) {
     const id = `smartdetector_${plan.id}_v1`;
     await ensureProduct(client, id, { name: plan.name, description: describe(plan.devices) }, { application: 'smartdetector', included_devices: String(plan.devices) }, productImage);
-    const lookup_key = `${id}_usd_monthly`;
-    let price = (await client.prices.list({ lookup_keys: [lookup_key], limit: 2 })).data[0];
+    const lookup_key = `${id}_usd_monthly_devices_v2`;
+    const tiers = [{up_to:plan.devices,flat_amount:plan.cents,unit_amount:0},{up_to:'inf',flat_amount:0,unit_amount:plan.extraCents}];
+    let price = (await client.prices.list({ lookup_keys: [lookup_key], limit: 2, expand:['data.tiers'] })).data[0];
     if (price && (!price.active || price.product !== id || price.currency !== 'usd' ||
-      price.unit_amount !== plan.cents || price.recurring?.interval !== 'month' ||
+      price.billing_scheme !== 'tiered' || price.tiers_mode !== 'graduated' || !matchingTiers(price.tiers,tiers) || price.recurring?.interval !== 'month' ||
       price.recurring?.interval_count !== 1 || price.recurring?.usage_type !== 'licensed')) {
       throw new Error(`Price conflict: ${lookup_key}; review manually`);
     }
     if (!price) price = await client.prices.create({ product: id, currency: 'usd',
-      unit_amount: plan.cents, recurring: { interval: 'month' }, lookup_key },
+      billing_scheme:'tiered',tiers_mode:'graduated',tiers, recurring: { interval: 'month',usage_type:'licensed' }, lookup_key },
     { idempotencyKey: `${lookup_key}_create` });
     output[plan.env] = price.id;
   }
   if (coupon) output.coupon = await ensureCoupon(client, coupon);
   return output;
 }
+
+function matchingTiers(actual,expected){return actual?.length===2&&actual.every((tier,index)=>['flat_amount','unit_amount'].every(key=>(tier[key]??0)===expected[index][key])&&(tier.up_to??'inf')===expected[index].up_to);}
 
 // Validates coupon settings without touching Stripe; null when none are given.
 function couponTerms(env) {

@@ -5,6 +5,7 @@
 **/.env.*
 .github
 .next
+.next-releases
 node_modules
 bin
 dist
@@ -20,6 +21,11 @@ devops/**/*.parameters.json
 devops/**/*.local.json
 
 .venv
+docs/
+apps/
+tests/
+devops/testing/
+devops/stripe/
 __pycache__
 readme.txt
 Inspiration.md

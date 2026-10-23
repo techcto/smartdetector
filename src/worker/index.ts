@@ -12,6 +12,7 @@ import { claimRingJob, finishRingJob } from "../lib/ring-jobs";
 import { processRingEvent } from "../lib/ring";
 import { eventView } from "../lib/event-view";
 import { queueTvAlerts, sendTvPush } from "../lib/tv-push";
+import {reconcileDeviceBilling} from '../lib/device-billing';
 const queue = process.env.SMARTDETECTOR_QUEUE_URL;
 if (!queue) throw new Error("Queue URL is required");
 const sqs = new SQSClient({
@@ -45,6 +46,7 @@ async function main() {
   console.log("smartdetector worker ready");
   for (;;) {
     await sweepEvidence();
+    await syncDeviceBilling();
     const r = await receive();
     for (const message of r.Messages ?? []) {
       try {
@@ -148,6 +150,12 @@ async function main() {
 }
 // Safety net only: DynamoDB TTL, immediate cleanup on shorter retention or lapsed plans, and read-time filtering do the real work.
 const SWEEP_MS = 3600000;
+let lastBillingSync=0;
+async function syncDeviceBilling(){
+ if(process.env.SMARTDETECTOR_DEPLOYMENT_MODE!=='saas'||!process.env.STRIPE_SECRET_KEY||Date.now()-lastBillingSync<60000)return;
+ lastBillingSync=Date.now();
+ try{for(const org of await store.organizations()){try{await reconcileDeviceBilling(org.id);}catch{console.error('Device billing sync failed; retrying next pass');}}}catch{console.error('Device billing directory unavailable; retrying next pass');}
+}
 let lastSweep = 0;
 async function sweepEvidence() {
   if (Date.now() - lastSweep < SWEEP_MS) return;

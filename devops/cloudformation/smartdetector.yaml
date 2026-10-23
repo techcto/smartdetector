@@ -199,6 +199,15 @@
       "Default": "1",
       "AllowedPattern": "[a-zA-Z0-9.-]+",
       "Description": "Increment when changing core secrets to roll tasks through CloudFormation. Do not rotate the provider encryption key without re-encrypting existing records."
+    },
+    "StripeMode": {
+      "Type": "String",
+      "Default": "live",
+      "AllowedValues": [
+        "live",
+        "sandbox"
+      ],
+      "Description": "Stripe environment. Production uses live; an isolated sandbox deployment requires sandbox keys and sandbox prices."
     }
   },
   "Conditions": {
@@ -1270,6 +1279,12 @@
                 "Value": {
                   "Ref": "CoreSecretsRevision"
                 }
+              },
+              {
+                "Name": "SMARTDETECTOR_STRIPE_MODE",
+                "Value": {
+                  "Ref": "StripeMode"
+                }
               }
             ],
             "LogConfiguration": {
@@ -1587,6 +1602,12 @@
                 "Value": {
                   "Ref": "CoreSecretsRevision"
                 }
+              },
+              {
+                "Name": "SMARTDETECTOR_STRIPE_MODE",
+                "Value": {
+                  "Ref": "StripeMode"
+                }
               }
             ],
             "LogConfiguration": {
@@ -1882,6 +1903,12 @@
                 "Name": "SMARTDETECTOR_CORE_SECRETS_REVISION",
                 "Value": {
                   "Ref": "CoreSecretsRevision"
+                }
+              },
+              {
+                "Name": "SMARTDETECTOR_STRIPE_MODE",
+                "Value": {
+                  "Ref": "StripeMode"
                 }
               }
             ],

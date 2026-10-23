@@ -6,7 +6,7 @@ export async function POST(req:NextRequest){
  try{
   requireEmailDelivery();await limitAuthRequests(req.headers,'resend');
   const {username,next}=JSON.parse(await readBody(req,2048)) as {username?:string;next?:string};
-  if(username!==undefined&&(typeof username!=='string'||username.length>40)||next!==undefined&&typeof next!=='string')throw new SignupError('Invalid verification request');
+  if(username!==undefined&&(typeof username!=='string'||username.length>40)||next!=null&&typeof next!=='string')throw new SignupError('Invalid verification request');
   const user=username?await store.userByName(username):null;
   if(!user||user.status!=='active'||!verificationPending(user))return NextResponse.json({status:'ok'});
   const wait=resendWaitMinutes(user);

@@ -8,7 +8,7 @@ export async function POST(req:NextRequest){
   const secret=process.env.SMARTDETECTOR_SESSION_SECRET??'';
   let input;try{input=JSON.parse(await readBody(req,8192));}catch{return NextResponse.json({error:'Invalid verification request'},{status:400});}
   const {token,next}=input??{};
-  if(typeof token!=='string'||token.length>4096||next!==undefined&&typeof next!=='string')return NextResponse.json({error:'Invalid verification request'},{status:400});
+  if(typeof token!=='string'||token.length>4096||next!=null&&typeof next!=='string')return NextResponse.json({error:'Invalid verification request'},{status:400});
   const claim=await verifyVerifyEmailToken(token,secret);
   const user=claim&&await store.userById(claim.userId);
   if(!user||user.status!=='active'||user.email!==claim.email)return NextResponse.json({error:'This verification link has expired or was already replaced. Sign in to request a new one.'},{status:400});

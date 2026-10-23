@@ -17,7 +17,7 @@ export type Settings={
   privacy:{evidenceRetentionDays:number;imageRetentionDays?:number;enhancedInspection?:boolean;maxEvidenceLines:number;removeQueryValues:boolean;fingerprintUserAgents:boolean};
   updatedAt:string;
 };
-export type Product={id:string;name:string;description:string;stripePriceId:string;monthlyPrice:number;serverLimit:number;active:boolean};
+export type Product={id:string;name:string;description:string;stripePriceId:string;monthlyPrice:number;serverLimit:number;extraDeviceMonthlyPrice?:number;active:boolean};
 export type Subscription={id:string;orgId:string;productId:string;stripeCustomerId?:string;stripeSubscriptionId?:string;status:'trialing'|'active'|'past_due'|'canceled'|'unpaid';currentPeriodEnd?:string;updatedAt:string};
 export function defaultSettings(tenantId:string):Settings{return{
   tenantId,
