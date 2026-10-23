@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { refreshSummary } from "./settings-feedback.mjs";
 import {
   AppState,
   BackHandler,
@@ -269,6 +270,7 @@ export function App() {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [refreshEpoch, setRefreshEpoch] = useState(0),
+    [refreshStatus, setRefreshStatus] = useState(""),
     [deviceId, setDeviceId] = useState(""),
     [selectedId, setSelectedId] = useState(""),
     [frame, setFrame] = useState(0),
@@ -344,6 +346,7 @@ export function App() {
     setToken("");
     setPair(null);
     setFeed(null);
+    setRefreshStatus("");
     setSelectedId("");
     setDeviceId("");
     setResults(null);
@@ -530,6 +533,7 @@ export function App() {
           n && next.incidents.some((i: Event) => i.id === n.id) ? n : null
         );
         setFeed(next);
+        setRefreshStatus(refreshSummary(next.devices.length, next.incidents.length));
         setResults(search?.items ?? null);
         setSearchNote(
           search
@@ -546,6 +550,7 @@ export function App() {
         setError("");
       } catch (e) {
         if (!disposed && !c.signal.aborted) {
+          setRefreshStatus("Refresh failed. Check your connection; retrying automatically.");
           setResults(null);
           setSelectedId("");
           if (e instanceof AccessRevoked) reset();
@@ -811,10 +816,11 @@ export function App() {
               <Action onPress={() => setAlerts((a) => !a)}>
                 In-app alerts {alerts ? "on" : "off"}
               </Action>
-              <Action onPress={() => setRefreshEpoch((n) => n + 1)}>
+              <Action onPress={() => { setRefreshStatus("Refreshing devices and events…"); setRefreshEpoch((n) => n + 1); }}>
                 Refresh now
               </Action>
             </View>
+            {!!refreshStatus && <Text style={s.muted}>{refreshStatus}</Text>}
             {backgroundAlertsAvailable && (
               <View style={s.actions}>
                 <Action

@@ -6,11 +6,11 @@ import {chromium} from '@playwright/test';
 const base=process.env.SMARTDETECTOR_TEST_URL||'http://localhost:8082';
 if(!['localhost','127.0.0.1'].includes(new URL(base).hostname))throw new Error('This synthetic signup test is local-only');
 const shots=process.env.SMARTDETECTOR_TEST_SCREENSHOTS;
-const run=randomUUID().slice(0,8),username='synthetic-signup-'+run,password='synthetic-signup-'+randomUUID(),email=`Synthetic.Signup+${run}@Example.COM`;
-const legacyName='synthetic-legacy-'+run,legacyPassword='synthetic-legacy-'+randomUUID();
+const run=randomUUID().slice(0,8),username=('Synthetic.Signup+'+run+'@Example.COM').toLowerCase(),password='synthetic-signup-'+randomUUID(),email=`Synthetic.Signup+${run}@Example.COM`;
+const legacyName='synthetic-admin-'+run+'@example.com',legacyPassword='synthetic-legacy-'+randomUUID();
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH});
 const shot=async(page,name)=>{if(shots)await page.screenshot({path:`${shots}/${name}.png`,fullPage:true})};
-async function signIn(page,name,secret){await page.getByLabel('Username',{exact:true}).fill(name);await page.getByLabel('Password',{exact:true}).fill(secret);await page.locator('form').getByRole('button',{name:'Sign in',exact:true}).click()}
+async function signIn(page,name,secret){await page.getByLabel('Email (or root username)',{exact:true}).fill(name);await page.getByLabel('Password',{exact:true}).fill(secret);await page.locator('form').getByRole('button',{name:'Sign in',exact:true}).click()}
 const cleanup=[];let api;
 try{
  const root=await browser.newContext(),rootPage=await root.newPage();api=root.request;
@@ -21,7 +21,7 @@ try{
  // Start from a protected device page: sign-in sends the visitor to /login?next=/devices, where they create an account.
  await page.goto(base+'/devices');await page.waitForURL('**/login?next=%2Fdevices');await page.waitForLoadState('networkidle');await page.getByRole('button',{name:'Create account'}).click();
  assert.equal(await page.getByLabel('Email').getAttribute('required'),'');
- const fill=async(name,address)=>{await page.getByLabel('Display name').fill('Synthetic Signup '+run);await page.getByLabel('Email').fill(address);await page.getByLabel('Username',{exact:true}).fill(name);await page.getByLabel('Password',{exact:true}).fill(password)};
+ const fill=async(name,address)=>{await page.getByLabel('Display name').fill('Synthetic Signup '+run);await page.getByLabel('Email',{exact:true}).fill(address);await page.getByLabel('Password',{exact:true}).fill(password)};
  await fill(username,email);
  const created=page.waitForResponse(r=>r.url().endsWith('/api/auth/signup'));await page.getByRole('button',{name:'Create location'}).click();
  const signup=await created;assert.equal(signup.status(),201);const signupBody=await signup.json(),userId=signupBody.id;cleanup.unshift(`/api/v1/users/${userId}`);
@@ -38,7 +38,7 @@ try{
  assert.deepEqual(raced.map(r=>r.status()).sort(),[201,409,409],'one signup claims the address');
  // Signing in before verifying shows the notice; a wrong password still gets the generic error.
  await page.goto(base+'/devices');await page.waitForURL('**/login?next=%2Fdevices');await page.waitForLoadState('networkidle');
- await signIn(page,username,'wrong-password-'+run);await page.getByRole('alert').getByText('Invalid username or password').waitFor();
+ await signIn(page,username,'wrong-password-'+run);await page.getByRole('alert').getByText('Invalid email or password').waitFor();
  await signIn(page,username,password);await notice.getByText('Verify your email').waitFor();assert.equal(new URL(page.url()).pathname,'/login');
  // Resend inside Osirus's 25-minute cooldown says how long to wait.
  await notice.getByRole('button',{name:'Resend verification email'}).click();await notice.getByText(/Please wait\. We can send the email again in 2[45] minutes/).waitFor();await shot(page,'resend-cooldown');
@@ -58,12 +58,12 @@ try{
  await signIn(reusePage,username,password);await reusePage.waitForURL(u=>new URL(u).pathname==='/devices');await reuse.close();
  // A hostile destination is dropped.
  const hostile=new URL(verifyLink);hostile.searchParams.set('next','https://evil.example/devices');await page.goto(hostile.toString());await page.waitForURL(base+'/login?verify=done');
- // Accounts made without the verification flag (before this feature, or by an organization admin) keep signing in.
- const legacy=await api.post(base+'/api/v1/users',{data:{username:legacyName,displayName:'Synthetic Legacy '+run,password:legacyPassword,role:'viewer'}});assert.equal(legacy.status(),201,await legacy.text());cleanup.unshift(`/api/v1/users/${(await legacy.json()).id}`);
+ // Admin-created SaaS accounts also require email verification.
+ const legacy=await api.post(base+'/api/v1/users',{headers:{Origin:base},data:{email:legacyName,displayName:'Synthetic Admin Account '+run,password:legacyPassword,role:'viewer'}});assert.equal(legacy.status(),201,await legacy.text());cleanup.unshift(`/api/v1/users/${(await legacy.json()).id}`);
  const legacyContext=await browser.newContext(),legacyPage=await legacyContext.newPage();
- await legacyPage.goto(base+'/login');await signIn(legacyPage,legacyName,legacyPassword);await legacyPage.waitForURL('**/console');await legacyContext.close();
+ await legacyPage.goto(base+'/login');await signIn(legacyPage,legacyName,legacyPassword);await legacyPage.locator('.notice').getByText('Verify your email').waitFor();await legacyContext.close();
  await context.close();
- console.log('PASS: signup requires a unique email (also under racing signups in DynamoDB), starts unverified without a session, blocks sign-in until verified, resend waits out the cooldown with the remaining time, tampered links are refused, the link signs in once and returns to the starting device page, reused links do not sign in, hostile destinations are dropped, legacy accounts keep signing in.');
+ console.log('PASS: email-only signup, uniqueness, verification, recovery-compatible identities and verified admin-created accounts.');
 }finally{
  if(api)for(const path of cleanup){const r=await api.delete(base+path,{headers:{Origin:base},data:{confirmation:'DELETE'}});if(![200,404].includes(r.status()))console.error(`cleanup ${path}: ${r.status()} ${await r.text()}`)}
  await browser.close();

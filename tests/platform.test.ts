@@ -8,8 +8,8 @@ import{encryptSecret,decryptSecret,saveSetting,listSettings,publicSetting,creden
 test('provider credentials are encrypted, redacted, and tenant isolated',async()=>{process.env.SMARTDETECTOR_SESSION_SECRET='synthetic-test-secret-32-characters-long';const a=await store.createOrganization({name:'Provider Synthetic A',ownerId:'test',orgType:'business'}),b=await store.createOrganization({name:'Provider Synthetic B',ownerId:'test',orgType:'business'});const v=await saveSetting(a.id,'test',{providerKey:'ring',name:'Demo',settings:{accessToken:'synthetic-secret'}});assert.notEqual(v.settings.accessToken,'synthetic-secret');assert.equal(publicSetting(v).settings.accessToken,'configured');assert.equal((await credentials(a.id,'ring'))?.accessToken,'synthetic-secret');assert.equal((await listSettings(b.id)).length,0);const encrypted=encryptSecret('value','tenant-a');assert.throws(()=>decryptSecret(encrypted,'tenant-b'))});
 test('password reset links use the browser-facing Host, never the container address or X-Forwarded-Host',async()=>{
  process.env.SMARTDETECTOR_SESSION_SECRET='synthetic-reset-origin-secret';
- const now=new Date().toISOString(),username='synthetic-reset-origin-'+Date.now();
- await store.putUser({id:'synthetic-reset-origin-'+Date.now(),username,displayName:'Synthetic Reset',status:'active',createdAt:now,updatedAt:now},'hash');
+ const now=new Date().toISOString(),username='reset-origin@example.com';
+ await store.putUser({id:'synthetic-reset-origin-'+Date.now(),username,email:username,displayName:'Synthetic Reset',status:'active',createdAt:now,updatedAt:now},'hash');
  const link=async(headers:Record<string,string>)=>(await (await forgotPassword(new NextRequest('http://0.0.0.0:3000/api/auth/forgot-password',{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify({username})}))).json()).resetLink as string;
  assert.match(await link({host:'localhost:8082','x-forwarded-host':'attacker.test'}),/^http:\/\/localhost:8082\/login\/reset-password\?token=/);
  assert.match(await link({host:'smartdetector.com','x-forwarded-proto':'https'}),/^https:\/\/smartdetector\.com\/login\/reset-password\?token=/);
